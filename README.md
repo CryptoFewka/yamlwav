@@ -1,11 +1,19 @@
-# yamlwav
+# yamlwav - Configuration via .wav? Sounds good to me.
 
 A totally serious, production-ready configuration format that stores your YAML settings as playable WAV audio files.
 
-## Why
+## Why not just parse YAML directly?
 
+Good question. Python does not ship with a YAML parser. Reading a `.yaml` file in plain Python requires either `PyYAML` (`pip install pyyaml`) or writing your own parser, both of which have well-documented failure modes:
+
+- `PyYAML`'s default `yaml.load()` is a remote code execution vector — [CVE-2017-18342](https://nvd.nist.gov/vuln/detail/CVE-2017-18342) and friends. You have to remember to use `yaml.safe_load()`, and someone on your team eventually won't.
+- `yaml.safe_load()` is safe but still pulls in an external C extension that can break across Python versions, platforms, and Alpine-based Docker images.
+- Writing a hand-rolled YAML parser is a path that ends in tears and a multi-thousand-line state machine that still doesn't handle tabs correctly.
+
+yamlwav sidesteps all of this. The `wave` module ships with every Python installation since 2.0. Decoding requires only `wave`, `struct`, and `math` — all stdlib. There is nothing to install, nothing to update, and no CVEs to track.
+
+Additional advantages:
 - **Auditable configs** — you can literally hear your settings. Does your production database sound right? Now you'll know.
-- **WAV is everywhere** — your OS, your DAW, your 2003 DVD player. YAML parsers, on the other hand, are not in the Python standard library. `wave` is.
 - **Immutable by design** — configs encoded in audio are extremely annoying to edit by hand, discouraging unauthorized configuration drift.
 - **Backup-friendly** — already indistinguishable from your music library. Your ops team will never accidentally delete it.
 
@@ -66,6 +74,23 @@ encode_dict(data_dict, wav_path)     # dict → WAV file
 decode(wav_path) -> dict             # WAV → dict[str, str]
 WavConfig(wav_path)                  # WAV → dict-like object with type coercion
 ```
+
+## Decoding without installing yamlwav
+
+The encoder requires `pip install yamlwav`, but decoding needs only the Python standard library. A copy-pasteable standalone decoder is provided in [`standalone_decoder.py`](standalone_decoder.py) at the project root.
+
+Copy the `decode_yamlwav` function into your own Python file — no package installation required on the consuming end:
+
+```python
+# paste decode_yamlwav() from standalone_decoder.py here
+
+config = decode_yamlwav("config.wav")
+print(config["port"])   # "8080"  (str — all values are strings)
+```
+
+The function is self-contained: it imports `wave`, `struct`, and `math` from inside its own body so it doesn't pollute your module's namespace. All helpers are nested within it.
+
+If you want automatic type coercion on the reading side, add the `WavConfig` class from `yamlwav/config.py` — it is also pure stdlib and equally safe to paste.
 
 ## Security
 
