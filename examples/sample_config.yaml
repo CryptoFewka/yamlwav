@@ -1,0 +1,7 @@
+host: localhost
+port: 8080
+debug: true
+db_name: myapp_production
+log_level: INFO
+workers: 4
+app_name: DemoApp
