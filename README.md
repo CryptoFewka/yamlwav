@@ -81,17 +81,21 @@ yamlwav is designed for non-sensitive runtime configuration: hostnames, ports, f
 
 ## FAQ
 
-**Q: Should I use this in production?**
-A: We cannot think of a reason why not.
+- **Should I use this in production?**
 
-**Q: My coworkers are upset that the CI pipeline now plays audio.**
-A: Progress is often uncomfortable.
+  - We cannot think of a reason why not.
 
-**Q: Is this HIPAA compliant?**
-A: No. Please do not store protected health information — or any sensitive data — in WAV files.
+- **My coworkers are upset that the CI pipeline now plays audio.**
 
-**Q: What happens if I play the WAV at a team meeting?**
-A: Your team will hear the settings. This is the intended behavior.
+  - Progress is often uncomfortable.
+
+- **Q: Is this HIPAA compliant?**
+
+  - No. Please do not store protected health information — or any sensitive data — in WAV files.
+
+- **Q: What happens if I play the WAV at a team meeting?**
+
+  - Your team will hear the settings. This is the intended behavior.
 
 ## License
 
