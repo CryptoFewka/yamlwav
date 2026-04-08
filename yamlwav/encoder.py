@@ -1,9 +1,14 @@
 """YAML → WAV encoder."""
+import io
 import math
 import struct
 import wave
+import zipfile
 
 from .goertzel import AMPLITUDE, SAMPLE_RATE, SAMPLES_PER_CHAR, char_to_freq
+
+# Fixed timestamp used in the zip archive so output is byte-for-byte deterministic.
+_ZIP_DATE_TIME = (2020, 1, 1, 0, 0, 0)
 
 
 def _parse_yaml(path: str) -> dict:
@@ -65,11 +70,48 @@ def _encode_string(s: str) -> list:
     return samples
 
 
-def encode(yaml_path: str, wav_path: str) -> None:
+def _build_wav_bytes(channels: list) -> bytes:
+    """Interleave channel samples and return raw WAV file bytes."""
+    max_len = max(len(ch) for ch in channels)
+    padded = [ch + [0] * (max_len - len(ch)) for ch in channels]
+    n_channels = len(padded)
+
+    interleaved = bytearray()
+    for frame_idx in range(max_len):
+        for ch in padded:
+            sample = max(-32768, min(32767, ch[frame_idx]))
+            interleaved += struct.pack("<h", sample)
+
+    buf = io.BytesIO()
+    with wave.open(buf, "w") as wf:
+        wf.setnchannels(n_channels)
+        wf.setsampwidth(2)
+        wf.setframerate(SAMPLE_RATE)
+        wf.writeframes(bytes(interleaved))
+    return buf.getvalue()
+
+
+def _write_output(wav_bytes: bytes, wav_path: str, compress: bool) -> None:
+    """Write wav_bytes to wav_path, optionally wrapping in a zip archive."""
+    if compress:
+        info = zipfile.ZipInfo("data.wav", date_time=_ZIP_DATE_TIME)
+        info.compress_type = zipfile.ZIP_DEFLATED
+        with zipfile.ZipFile(wav_path, "w") as zf:
+            zf.writestr(info, wav_bytes)
+    else:
+        with open(wav_path, "wb") as fh:
+            fh.write(wav_bytes)
+
+
+def encode(yaml_path: str, wav_path: str, compress: bool = True) -> None:
     """Encode a flat YAML config file as a multi-channel WAV audio file.
 
     Channel 0 holds the key manifest (key names separated by null bytes).
     Channels 1..N each hold one config value, in the same order as the manifest.
+
+    When compress is True (the default) the output is a zip-compressed file.
+    Decoders auto-detect the format, so the choice is transparent to callers
+    of decode() and WavConfig. Pass compress=False to write raw PCM WAV.
     """
     config = _parse_yaml(yaml_path)
     keys = list(config.keys())
@@ -79,30 +121,17 @@ def encode(yaml_path: str, wav_path: str) -> None:
     for key in keys:
         channels.append(_encode_string(config[key]))
 
-    # WAV requires all channels to have the same frame count — pad with silence.
-    max_len = max(len(ch) for ch in channels)
-    padded = [ch + [0] * (max_len - len(ch)) for ch in channels]
-
-    n_channels = len(padded)
-
-    with wave.open(wav_path, "w") as wf:
-        wf.setnchannels(n_channels)
-        wf.setsampwidth(2)
-        wf.setframerate(SAMPLE_RATE)
-        # Interleave: frame 0 of ch0, frame 0 of ch1, ..., frame 1 of ch0, ...
-        interleaved = bytearray()
-        for frame_idx in range(max_len):
-            for ch in padded:
-                sample = max(-32768, min(32767, ch[frame_idx]))
-                interleaved += struct.pack("<h", sample)
-        wf.writeframes(bytes(interleaved))
+    _write_output(_build_wav_bytes(channels), wav_path, compress)
 
 
-def encode_dict(data: dict, wav_path: str) -> None:
+def encode_dict(data: dict, wav_path: str, compress: bool = True) -> None:
     """Encode a dict as a WAV file. Nested dicts are supported and flattened
     to dot-notation keys (e.g. {"db": {"host": "x"}} → key "db.host").
 
     Values are converted to strings via str() before encoding.
+
+    When compress is True (the default) the output is a zip-compressed file.
+    Pass compress=False to write raw PCM WAV.
     """
     data = _flatten_dict(data)
     keys = list(data.keys())
@@ -111,17 +140,4 @@ def encode_dict(data: dict, wav_path: str) -> None:
     for key in keys:
         channels.append(_encode_string(str(data[key])))
 
-    max_len = max(len(ch) for ch in channels)
-    padded = [ch + [0] * (max_len - len(ch)) for ch in channels]
-    n_channels = len(padded)
-
-    with wave.open(wav_path, "w") as wf:
-        wf.setnchannels(n_channels)
-        wf.setsampwidth(2)
-        wf.setframerate(SAMPLE_RATE)
-        interleaved = bytearray()
-        for frame_idx in range(max_len):
-            for ch in padded:
-                sample = max(-32768, min(32767, ch[frame_idx]))
-                interleaved += struct.pack("<h", sample)
-        wf.writeframes(bytes(interleaved))
+    _write_output(_build_wav_bytes(channels), wav_path, compress)

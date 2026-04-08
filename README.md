@@ -70,13 +70,45 @@ The resulting WAV file is 44100 Hz, 16-bit PCM and will play in any audio applic
 | `"3.14"` | `float` |
 | anything else | `str` |
 
+## Compression
+
+By default, yamlwav zip-compresses its output using `zipfile.ZIP_DEFLATED` from the Python
+standard library. WAV files full of pure sine waves are highly compressible, so this typically
+reduces file size by 60–80%.
+
+```python
+# Default: compressed output (smaller file, still a valid yamlwav file)
+encode("config.yaml", "config.wav")
+
+# Opt out to write a raw, uncompressed PCM WAV
+encode("config.yaml", "config.wav", compress=False)
+```
+
+Both `encode()` and `encode_dict()` accept a `compress` keyword argument (default `True`).
+
+The decoder and `WavConfig` detect the format automatically — no change needed on the reading side
+regardless of which mode was used to produce the file.
+
+## Command-line interface
+
+```bash
+# Encode (compressed by default)
+python -m yamlwav encode config.yaml config.wav
+
+# Encode without compression
+python -m yamlwav encode config.yaml config.wav --no-compress
+
+# Decode back to key: value pairs
+python -m yamlwav decode config.wav
+```
+
 ## API
 
 ```python
-encode(yaml_path, wav_path)          # YAML file → WAV file
-encode_dict(data_dict, wav_path)     # dict → WAV file
-decode(wav_path) -> dict             # WAV → dict[str, str]
-WavConfig(wav_path)                  # WAV → dict-like object with type coercion
+encode(yaml_path, wav_path, compress=True)    # YAML file → WAV file
+encode_dict(data_dict, wav_path, compress=True) # dict → WAV file
+decode(wav_path) -> dict                       # WAV → dict[str, str]  (auto-detects compression)
+WavConfig(wav_path)                            # WAV → dict-like object with type coercion
 ```
 
 ## Decoding without installing yamlwav
@@ -106,7 +138,7 @@ yamlwav is designed for non-sensitive runtime configuration: hostnames, ports, f
 
 - Only flat (non-nested) key-value pairs are supported. Nested config is a sign of moral weakness.
 - Decoding is O(N × 256) per character window and is implemented in pure Python. Performance scales linearly with the amount of config you have, which is a feature because it discourages large configs.
-- WAV files for typical configs are several megabytes. This is a small price to pay for audibility.
+- WAV files for typical configs are several megabytes before compression. With the default zip compression this is reduced substantially, though the files remain larger than the original YAML. This is the price of audibility.
 
 ## FAQ
 
