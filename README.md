@@ -1,5 +1,7 @@
 # yamlwav - Configuration via .wav? Sounds good to me.
 
+[![YAML Compliance](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/CryptoFewka/yamlwav/main/compliance-badge.json)](https://github.com/CryptoFewka/yamlwav/actions/workflows/yaml-compliance.yml)
+
 A totally serious, production-ready configuration format that stores your YAML settings as playable WAV audio files.
 
 ## Why not just parse YAML directly?

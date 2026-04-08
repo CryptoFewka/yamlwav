@@ -1,0 +1,122 @@
+name: YAML Compliance
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  compliance:
+    name: YAML 1.2 compliance
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install dev dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Run compliance suite
+        id: score
+        run: |
+          python3 - <<'PYEOF'
+          import os, json, sys, signal
+
+          sys.path.insert(0, ".")
+          from yamlwav.yaml_parser import parse
+
+          SUITE = "tests/yaml-test-suite"
+
+          def _alarm(s, f):
+              raise TimeoutError()
+
+          signal.signal(signal.SIGALRM, _alarm)
+
+          passed = failed = hung = 0
+          for entry in sorted(os.listdir(SUITE)):
+              path = os.path.join(SUITE, entry)
+              if not os.path.isdir(path):
+                  continue
+              in_yaml = os.path.join(path, "in.yaml")
+              in_json = os.path.join(path, "in.json")
+              if not (os.path.exists(in_yaml) and os.path.exists(in_json)
+                      and not os.path.exists(os.path.join(path, "error"))):
+                  continue
+              signal.alarm(5)
+              try:
+                  raw = open(in_json).read().strip()
+                  expected = json.loads(raw) if raw else None
+                  result = parse(open(in_yaml).read())
+                  signal.alarm(0)
+                  if result == expected:
+                      passed += 1
+                  else:
+                      failed += 1
+              except TimeoutError:
+                  hung += 1
+              except Exception:
+                  signal.alarm(0)
+                  failed += 1
+
+          total = passed + failed + hung
+          pct = passed / total * 100 if total else 0.0
+
+          env_file = os.environ.get("GITHUB_OUTPUT", "/dev/stdout")
+          with open(env_file, "a") as fh:
+              fh.write(f"passed={passed}\n")
+              fh.write(f"failed={failed}\n")
+              fh.write(f"hung={hung}\n")
+              fh.write(f"total={total}\n")
+              fh.write(f"pct={pct:.1f}\n")
+              fh.write(f"message={passed}/{total}\n")
+
+          if pct >= 95:
+              color = "brightgreen"
+          elif pct >= 85:
+              color = "yellowgreen"
+          elif pct >= 70:
+              color = "yellow"
+          elif pct >= 50:
+              color = "orange"
+          else:
+              color = "red"
+
+          badge = {"schemaVersion": 1, "label": "yaml compliance",
+                   "message": f"{passed}/{total}", "color": color}
+          with open("compliance-badge.json", "w") as fh:
+              json.dump(badge, fh, indent=2)
+              fh.write("\n")
+          PYEOF
+
+      - name: Job summary
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<SUMMARY
+          ## YAML 1.2 Compliance
+
+          | | Count |
+          |---|---|
+          | ✅ Passed | ${{ steps.score.outputs.passed }} |
+          | ❌ Failed | ${{ steps.score.outputs.failed }} |
+          | ⏱️ Timed out | ${{ steps.score.outputs.hung }} |
+          | **Total** | **${{ steps.score.outputs.total }}** |
+
+          **${{ steps.score.outputs.passed }}/${{ steps.score.outputs.total }} (${{ steps.score.outputs.pct }}%)**
+          SUMMARY
+
+      - name: Commit updated badge (main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add compliance-badge.json
+          git diff --cached --quiet || git commit -m "chore: update yaml compliance badge [skip ci]"
+          git push
