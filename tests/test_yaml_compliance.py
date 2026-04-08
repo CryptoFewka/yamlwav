@@ -74,6 +74,38 @@ def test_yamlwav_compliance(yaml_test_case):
     assert result == expected, f"{test_id}: got {result!r}, expected {expected!r}"
 
 
+def test_rejects_invalid_yaml(yaml_error_case):
+    """Parser must raise on inputs the YAML spec considers invalid.
+
+    These cases come from the yaml-test-suite error cases.  Many will initially
+    fail — that is expected and informative: it shows exactly where
+    error-detection is lacking.  Any exception (not just YAMLError) counts as a
+    correct rejection; a clean return value is a failure.  A 3-second alarm
+    guards against the parser hanging on pathological invalid input.
+    """
+    import signal
+
+    test_id, in_yaml = yaml_error_case
+    yaml_text = _load_text(in_yaml)
+
+    def _alarm(signum, frame):
+        raise TimeoutError(f"{test_id}: parser hung on invalid YAML (infinite loop)")
+
+    signal.signal(signal.SIGALRM, _alarm)
+    signal.alarm(3)
+    try:
+        result = yamlwav_parse(yaml_text)
+    except TimeoutError as exc:
+        pytest.fail(str(exc))
+    except Exception:
+        return  # any exception = parser rejected the input, which is correct
+    finally:
+        signal.alarm(0)
+    pytest.fail(
+        f"{test_id}: parser accepted invalid YAML without error (returned {result!r})"
+    )
+
+
 def test_exceeds_pyyaml(yaml_test_case):
     """Passes only for test cases where yamlwav succeeds but PyYAML fails.
 
