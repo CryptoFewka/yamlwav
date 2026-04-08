@@ -1,3 +1,5 @@
+![yamlwav social preview](social_preview.png)
+
 # yamlwav - Configuration via .wav? Sounds good to me.
 
 [![YAML Compliance](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/CryptoFewka/yamlwav/main/compliance-badge.json)](https://github.com/CryptoFewka/yamlwav/actions/workflows/yaml-compliance.yml)
