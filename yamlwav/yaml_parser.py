@@ -122,33 +122,73 @@ def _process_single_quoted(s: str) -> str:
 
 
 def _fold_block(lines: list, chomping: str) -> str:
-    """Apply folded (>) block scalar line-folding rules."""
+    """Apply folded (>) block scalar line-folding rules (YAML 1.2 spec §8.1.1.2).
+
+    Semantics:
+    - Normal → normal: fold to space
+    - Normal → blank(s) → normal: blanks replace the fold; each blank = 1 \\n
+    - Normal → blank(s) → more-indented: fold preserved (1 \\n) + blanks (1 \\n each)
+    - Normal → more-indented (no blanks): 1 \\n separator
+    - Blank line: 1 \\n
+    - More-indented line: kept verbatim with trailing \\n, \\n inserted before if needed
+    """
     if not lines:
         return ""
+
+    # Find the first non-empty index after position i, and what "kind" it is.
+    def _peek_next_nonblank(lst, start):
+        j = start
+        while j < len(lst) and lst[j] == "":
+            j += 1
+        if j >= len(lst):
+            return None, j  # (None = end-of-list)
+        return lst[j], j
+
     result = []
     i = 0
     while i < len(lines):
         line = lines[i]
         if line == "":
-            # Empty line — emit newline
+            # Blank line — emit one newline
             result.append("\n")
             i += 1
         elif line.startswith(" ") or line.startswith("\t"):
-            # More-indented line — keep newline, no folding
-            if result and result[-1] not in ("\n",):
+            # More-indented line — preserve with its own newline
+            if result and not result[-1].endswith("\n"):
                 result.append("\n")
             result.append(line + "\n")
             i += 1
         else:
-            # Normal line — fold with space unless followed by empty/more-indented
+            # Normal line
             result.append(line)
             i += 1
-            if i < len(lines):
-                next_line = lines[i]
-                if next_line == "" or next_line.startswith(" ") or next_line.startswith("\t"):
+            if i >= len(lines):
+                break
+            next_line = lines[i]
+            if next_line == "":
+                # One or more blank lines follow — check what comes after the blanks
+                blanks_start = i
+                next_nonblank, j = _peek_next_nonblank(lines, i)
+                blank_count = j - blanks_start
+                if next_nonblank is None:
+                    # Trailing blanks: preserve the line break after the last content
+                    # line (1 \\n) and each blank adds another \\n.
                     result.append("\n")
+                elif not (next_nonblank.startswith(" ") or next_nonblank.startswith("\t")):
+                    # Blanks followed by normal: blanks ABSORB the fold.
+                    # Each blank produces 1 \\n; the fold itself is not added.
+                    pass  # blanks will be added in subsequent iterations
                 else:
-                    result.append(" ")
+                    # Blanks followed by more-indented: fold is PRESERVED (adds 1 \\n),
+                    # then blanks add their own \\n each.
+                    result.append("\n")
+            elif next_line.startswith(" ") or next_line.startswith("\t"):
+                # More-indented follows directly: 1 \\n separator
+                result.append("\n")
+            else:
+                # Normal follows: fold to space
+                result.append(" ")
+
     text = "".join(result)
     return _apply_chomping(text, chomping)
 
@@ -288,7 +328,7 @@ class Scanner:
         """Scan one document's worth of tokens."""
         yield from self._scan_node(0, block=True)
 
-    def _scan_node(self, indent, block=True):
+    def _scan_node(self, indent, block=True, collection_indent=None):
         self.skip_whitespace_and_comments(newlines=True)
         if self.pos >= len(self.text):
             return
@@ -312,7 +352,7 @@ class Scanner:
         # indent when anchor and content are on the same line).
         col_start = col
 
-        # Anchor
+        # Anchor (before tag)
         if ch == "&":
             anchor_line = self.line
             self.advance()
@@ -321,7 +361,11 @@ class Scanner:
                 name.append(self.advance())
             anchor = "".join(name)
             anchor_tok = Token(TOK_ANCHOR, value=anchor, line=self.line)
-            # Skip whitespace; if anchor is alone on a line, advance to next line's content
+            # Track whether anchor is end-of-line (possible null value)
+            _anchor_eol = self.peek() in ("\n", "\r", "")
+            while self.peek() in (" ", "\t"):
+                self.advance()
+            _anchor_eol = _anchor_eol or self.peek() in ("\n", "\r", "")
             self.skip_whitespace_and_comments(newlines=True)
             ch = self.peek()
             # If content moved to a new line, update col_start to content column
@@ -339,19 +383,59 @@ class Scanner:
             if self.line != tag_line:
                 col_start = self.current_column()
 
+        # Anchor (after tag, e.g. "!!int &name value")
+        # If tag was followed by newline and then &anchor, only grab the anchor if
+        # the next content after &name is NOT another tag (!!foo) — in that case
+        # &anchor belongs to a collection key, not to the outer node.
+        _tag_crossed_line = tag_tok is not None and self.line != tag_line
+        def _anchor_after_is_another_tag():
+            """Check if &name is followed by a tag '!' — signals this & belongs to a key."""
+            saved = self.pos
+            saved_line = self.line
+            self.advance()  # skip &
+            while self.pos < len(self.text) and self.peek() not in (" ", "\t", "\n", "\r", ",", "[", "]", "{", "}"):
+                self.advance()
+            while self.peek() in (" ", "\t"):
+                self.advance()
+            result = self.peek() == "!"
+            self.pos = saved
+            self.line = saved_line
+            return result
+        if ch == "&" and anchor_tok is None and not (_tag_crossed_line and _anchor_after_is_another_tag()):
+            anchor_line2 = self.line
+            self.advance()
+            name = []
+            while self.pos < len(self.text) and self.peek() not in (" ", "\t", "\n", "\r", ",", "[", "]", "{", "}"):
+                name.append(self.advance())
+            anchor = "".join(name)
+            anchor_tok = Token(TOK_ANCHOR, value=anchor, line=self.line)
+            _anchor_eol = self.peek() in ("\n", "\r", "")
+            while self.peek() in (" ", "\t"):
+                self.advance()
+            _anchor_eol = _anchor_eol or self.peek() in ("\n", "\r", "")
+            self.skip_whitespace_and_comments(newlines=True)
+            ch = self.peek()
+            if self.line != anchor_line2:
+                col_start = self.current_column()
+
         # col_content: column of actual content after consuming anchor/tag.
         # col: block mapping/sequence indent — col_start when same line, col_content when crossed.
         col_content = self.current_column()
         col = col_start
 
-        # If an anchor/tag was consumed and nothing follows on the same line, the value is null.
-        # Emit the anchor/tag and a null scalar immediately before any block content is consumed,
-        # so that the anchor names an empty (null) value rather than the next sibling entry.
-        if (anchor_tok is not None or tag_tok is not None) and ch in ("\n", "\r", "") and col == col_start:
-            if anchor_tok: yield anchor_tok
-            if tag_tok: yield tag_tok
-            yield Token(TOK_SCALAR, value="", style=None, line=self.line)
-            return
+        # If an anchor/tag was consumed and nothing follows (end of meaningful content),
+        # the value is null. We detect this when:
+        #   - the anchor/tag was at end-of-line (eol), AND
+        #   - the next content is NOT deeper than the node's required minimum indent
+        #     (meaning it belongs to the parent scope, not to this node)
+        _anchor_eol = locals().get('_anchor_eol', False)
+        if (anchor_tok is not None or tag_tok is not None) and _anchor_eol:
+            if ch in ("", ) or (block and col_content < indent and
+                    ch not in ("[", "{", "-", "|", ">")):
+                if anchor_tok: yield anchor_tok
+                if tag_tok: yield tag_tok
+                yield Token(TOK_SCALAR, value="", style=None, line=self.line)
+                return
 
         # Flow sequence
         if ch == "[":
@@ -423,7 +507,7 @@ class Scanner:
             return
 
         # Scalar
-        yield from self._scan_scalar(indent, block=block, tag=tag)
+        yield from self._scan_scalar(indent, block=block, tag=tag, collection_indent=collection_indent)
 
     def _scan_tag(self) -> str:
         self.advance()  # skip first !
@@ -480,6 +564,11 @@ class Scanner:
             q = self.advance()
             while self.pos < len(self.text):
                 c = self.advance()
+                if c == "\\" and q == '"':
+                    # Skip escaped character in double-quoted scalar
+                    if self.pos < len(self.text):
+                        self.advance()
+                    continue
                 if c == q:
                     if q == "'" and self.peek() == "'":
                         self.advance()
@@ -526,14 +615,14 @@ class Scanner:
             if self.peek() in (" ", "\t"):
                 self.skip_whitespace_and_comments(newlines=False)
                 if self.peek() not in ("\n", "\r", ""):
-                    yield from self._scan_node(seq_indent + 1, block=True)
+                    yield from self._scan_node(seq_indent + 1, block=True, collection_indent=seq_indent)
                 else:
                     self.skip_whitespace_and_comments(newlines=True)
-                    yield from self._scan_node(seq_indent + 1, block=True)
+                    yield from self._scan_node(seq_indent + 1, block=True, collection_indent=seq_indent)
             else:
                 # - immediately followed by newline
                 self.skip_whitespace_and_comments(newlines=True)
-                yield from self._scan_node(seq_indent + 1, block=True)
+                yield from self._scan_node(seq_indent + 1, block=True, collection_indent=seq_indent)
         yield Token(TOK_BLOCK_SEQ_END, line=self.line)
 
     def _scan_block_mapping(self, map_indent, first_entry_in_progress=False, deferred_tokens=None):
@@ -571,13 +660,13 @@ class Scanner:
                 self.advance()
                 self.skip_whitespace_and_comments(newlines=False)
                 yield Token(TOK_KEY, line=self.line)
-                yield from self._scan_node(map_indent + 1, block=True)
+                yield from self._scan_node(map_indent + 1, block=True, collection_indent=map_indent)
                 self.skip_whitespace_and_comments(newlines=True)
                 if self.peek() == ":" and self.current_column() == map_indent:
                     self.advance()
                     self.skip_whitespace_and_comments(newlines=False)
                     yield Token(TOK_VALUE, line=self.line)
-                    yield from self._scan_node(map_indent + 1, block=True)
+                    yield from self._scan_node(map_indent + 1, block=True, collection_indent=map_indent)
                 continue
 
             # Implicit key: scan key scalar then expect :
@@ -598,15 +687,15 @@ class Scanner:
                     self.skip_whitespace_and_comments(newlines=True)
                     next_col = self.current_column()
                     if next_col > map_indent:
-                        yield from self._scan_node(next_col, block=True)
+                        yield from self._scan_node(next_col, block=True, collection_indent=map_indent)
                     elif next_col == map_indent and self.peek() == "-" and self.peek(1) in (" ", "\t", "\n", "\r", ""):
                         # Block sequence at same indent level as the mapping keys — valid per YAML spec
-                        yield from self._scan_node(next_col, block=True)
+                        yield from self._scan_node(next_col, block=True, collection_indent=map_indent)
                     else:
                         # Empty value
                         yield Token(TOK_SCALAR, value="", style=None, line=self.line)
                 else:
-                    yield from self._scan_node(map_indent + 1, block=True)
+                    yield from self._scan_node(map_indent + 1, block=True, collection_indent=map_indent)
             else:
                 # No value — emit empty scalar
                 yield Token(TOK_VALUE, line=self.line)
@@ -631,6 +720,15 @@ class Scanner:
             yield Token(TOK_TAG, value=tag, line=self.line)
             self.skip_whitespace_and_comments(newlines=False)
             ch = self.peek()
+        # Anchor after tag (e.g. "!!str &a10 key10: value")
+        if ch == "&":
+            self.advance()
+            name = []
+            while self.pos < len(self.text) and self.peek() not in (" ", "\t", "\n", "\r", ":"):
+                name.append(self.advance())
+            yield Token(TOK_ANCHOR, value="".join(name), line=self.line)
+            self.skip_whitespace_and_comments(newlines=False)
+            ch = self.peek()
         # Alias as key (*name)
         if ch == "*":
             self.advance()
@@ -642,7 +740,7 @@ class Scanner:
         # Use block=True so that [ ] { } are allowed in block-context keys
         yield from self._scan_scalar(indent, block=True, tag=None, in_key=True)
 
-    def _scan_scalar(self, indent, block=True, tag=None, in_key=False):
+    def _scan_scalar(self, indent, block=True, tag=None, in_key=False, collection_indent=None):
         ch = self.peek()
         line = self.line
 
@@ -660,7 +758,11 @@ class Scanner:
 
         # Block scalars (only in block context, not in key)
         if block and not in_key and ch in ("|", ">"):
-            value = self._scan_block_scalar(ch, indent)
+            # collection_indent: the indentation of the enclosing collection (mapping/sequence).
+            # Used to compute block_indent when an explicit indent indicator is given.
+            # Falls back to indent-1 when not explicitly provided.
+            coll_indent = collection_indent if collection_indent is not None else indent - 1
+            value = self._scan_block_scalar(ch, indent, coll_indent)
             yield Token(TOK_SCALAR, value=value, style=ch, line=line)
             return
 
@@ -671,21 +773,58 @@ class Scanner:
     def _scan_double_quoted(self) -> str:
         self.advance()  # opening "
         parts = []
+        pending_fold_space = False  # lazy space from line fold
         while self.pos < len(self.text):
             ch = self.peek()
             if ch == '"':
                 self.advance()
+                # Closing quote — output pending fold space (it IS content)
+                if pending_fold_space:
+                    parts.append(" ")
+                    pending_fold_space = False
                 break
             if ch in ("\n", "\r"):
-                # Line folding inside double-quoted scalar
+                # Line folding inside double-quoted scalar (YAML spec §7.3.1)
+                # Strip trailing whitespace from current line's content
+                while parts and parts[-1] in (" ", "\t"):
+                    parts.pop()
+                pending_fold_space = False
                 self.advance()
                 if ch == "\r" and self.peek() == "\n":
                     self.advance()
-                # Skip leading whitespace on next line (unless backslash-newline)
+                # Check whether the next line is blank (whitespace-only).
+                # Blank lines generate \n; normal continuation folds to space.
+                blank_count = 0
+                while True:
+                    tmp = self.pos
+                    all_ws = True
+                    while tmp < len(self.text) and self.text[tmp] not in ("\n", "\r"):
+                        if self.text[tmp] not in (" ", "\t"):
+                            all_ws = False
+                            break
+                        tmp += 1
+                    if all_ws and tmp < len(self.text) and self.text[tmp] in ("\n", "\r"):
+                        # Blank line — advance past it
+                        blank_count += 1
+                        while self.peek() in (" ", "\t"):
+                            self.advance()
+                        nl = self.advance()  # the newline
+                        if nl == "\r" and self.peek() == "\n":
+                            self.advance()
+                    else:
+                        break
+                # Skip leading whitespace on the content line
                 while self.peek() in (" ", "\t"):
                     self.advance()
-                if parts and parts[-1] != " " and not (parts[-1] == "\\" and False):
-                    parts.append(" ")
+                if blank_count > 0:
+                    # Blank lines → newlines (also commits any pending fold space first)
+                    if pending_fold_space:
+                        parts.append(" ")
+                        pending_fold_space = False
+                    parts.append("\n" * blank_count)
+                else:
+                    # Normal fold: space separator (add lazily)
+                    pending_fold_space = True
                 continue
             if ch == "\\":
                 # Read the escape, handle backslash-newline (line continuation)
@@ -693,15 +832,26 @@ class Scanner:
                 esc = self.peek()
                 if esc in ("\n", "\r"):
                     # Backslash-newline = line continuation (no space)
+                    # Do NOT strip trailing content — only regular \n line breaks
+                    # strip trailing whitespace (spec 8.1.1.2)
+                    pending_fold_space = False
                     self.advance()
                     if esc == "\r" and self.peek() == "\n":
                         self.advance()
                     while self.peek() in (" ", "\t"):
                         self.advance()
                     continue
+                # Escape sequence — commit pending fold space first
+                if pending_fold_space:
+                    parts.append(" ")
+                    pending_fold_space = False
                 parts.append("\\" + esc)
                 self.advance()
                 continue
+            # Regular character — commit pending fold space first
+            if pending_fold_space:
+                parts.append(" ")
+                pending_fold_space = False
             parts.append(ch)
             self.advance()
         return _unescape_double_quoted("".join(parts))
@@ -709,41 +859,86 @@ class Scanner:
     def _scan_single_quoted(self) -> str:
         self.advance()  # opening '
         parts = []
+        pending_fold_space = False  # lazy-space from line fold
         while self.pos < len(self.text):
             ch = self.peek()
             if ch == "'":
                 self.advance()
                 if self.peek() == "'":
+                    # Escaped ' — commit any pending fold space first
+                    if pending_fold_space:
+                        parts.append(" ")
+                        pending_fold_space = False
                     parts.append("'")
                     self.advance()
                     continue
+                # Closing quote — output pending fold space (it IS content)
+                if pending_fold_space:
+                    parts.append(" ")
+                    pending_fold_space = False
                 break
             if ch in ("\n", "\r"):
+                # Line folding inside single-quoted scalar (YAML spec §7.3.1)
+                # Strip trailing whitespace from current line's direct content
+                while parts and parts[-1] in (" ", "\t"):
+                    parts.pop()
+                pending_fold_space = False  # discard pending fold (replaced by this new fold)
                 self.advance()
                 if ch == "\r" and self.peek() == "\n":
                     self.advance()
+                # Count blank (whitespace-only) lines — they become \n
+                blank_count = 0
+                while True:
+                    tmp = self.pos
+                    all_ws = True
+                    while tmp < len(self.text) and self.text[tmp] not in ("\n", "\r"):
+                        if self.text[tmp] not in (" ", "\t"):
+                            all_ws = False
+                            break
+                        tmp += 1
+                    if all_ws and tmp < len(self.text) and self.text[tmp] in ("\n", "\r"):
+                        blank_count += 1
+                        while self.peek() in (" ", "\t"):
+                            self.advance()
+                        nl = self.advance()
+                        if nl == "\r" and self.peek() == "\n":
+                            self.advance()
+                    else:
+                        break
+                # Strip leading whitespace on the content line
                 while self.peek() in (" ", "\t"):
                     self.advance()
-                if parts and parts[-1] != " ":
-                    parts.append(" ")
+                if blank_count > 0:
+                    parts.append("\n" * blank_count)
+                else:
+                    # Normal line fold: a space separator (add lazily)
+                    pending_fold_space = True
                 continue
+            # Non-special character — commit pending fold space first
+            if pending_fold_space:
+                parts.append(" ")
+                pending_fold_space = False
             parts.append(ch)
             self.advance()
         return "".join(parts)
 
-    def _scan_block_scalar(self, style: str, indent: int) -> str:
+    def _scan_block_scalar(self, style: str, indent: int, coll_indent: int = None) -> str:
         self.advance()  # skip | or >
-        # Read optional indentation indicator and chomping indicator
+        # Read optional indentation indicator and chomping indicator (either order).
+        # e.g. |2-, |-2, >+, |2+, etc.
         chomping = ""  # default = clip
         explicit_indent = 0
-        while self.peek() in ("0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "-", "+"):
+        # Read up to two modifier characters (digit and/or +/-) in either order
+        for _ in range(2):
             ch = self.peek()
-            if ch in ("-", "+"):
+            if ch in ("-", "+") and not chomping:
                 chomping = ch
                 self.advance()
-            elif ch.isdigit():
+            elif ch.isdigit() and not explicit_indent:
                 explicit_indent = int(ch)
                 self.advance()
+            else:
+                break
         # Skip comment and rest of line
         self.skip_to_eol()
 
@@ -760,11 +955,20 @@ class Scanner:
                 self.advance()
                 spaces += 1
 
-            # Check for end of block scalar
+            # Check for end of block scalar — but only for non-empty lines.
+            # Whitespace-only (blank) lines are part of the scalar regardless
+            # of their indentation level.
             ch = self.peek()
+
+            # Truly empty line (just a newline / EOF) — the line has spaces but no other content.
             if ch in ("\n", "\r") or self.pos >= len(self.text):
-                # Empty line — keep as ""
-                lines.append("")
+                # For literal scalars: if this line has MORE spaces than block_indent,
+                # those extra spaces are content (YAML spec: a tab or space-only line
+                # inside a literal block retains its content after stripping block_indent).
+                if style == "|" and block_indent >= 0 and spaces > block_indent:
+                    lines.append(" " * (spaces - block_indent))
+                else:
+                    lines.append("")
                 if ch == "\r":
                     self.advance()
                     if self.peek() == "\n":
@@ -773,36 +977,76 @@ class Scanner:
                     self.advance()
                 continue
 
-            # Document marker check
+            # Document marker check — always terminates block scalar
             rest = self.text[self.pos:self.pos+3]
             if rest in ("---", "..."):
                 after = self.text[self.pos+3:self.pos+4]
                 if after in ("", " ", "\t", "\n", "\r"):
                     # Rewind to line start
                     self.pos = line_start
-                    self.line -= 0  # line tracking already advanced
                     break
 
             if block_indent == -1:
                 if explicit_indent > 0:
-                    block_indent = indent + explicit_indent
+                    # explicit_indent is relative to the enclosing collection's indentation.
+                    # coll_indent is the collection's own indent level (e.g. map_indent or
+                    # seq_indent); explicit_indent is counted from there.
+                    parent = coll_indent if coll_indent is not None else (indent - 1)
+                    block_indent = parent + explicit_indent
                 else:
+                    # Auto-detect: content must be more indented than the parent.
+                    # Parent indent = indent - 1 (since indent = parent + 1).
+                    # Content must have spaces > parent_indent = spaces >= indent.
+                    if spaces < indent:
+                        # First non-blank line is at or below parent indent — empty scalar
+                        self.pos = line_start
+                        break
                     block_indent = spaces
 
             if spaces < block_indent:
-                # Line is less indented — end of block scalar
-                self.pos = line_start
-                break
+                # Line is less indented — end of block scalar.
+                # BUT: if the remaining content is all whitespace, this is still a
+                # blank line inside the scalar (YAML spec: blank lines are content-free).
+                # Peek ahead: if everything on this line until EOL is whitespace, it's blank.
+                saved_pos2 = self.pos
+                all_ws = True
+                tmp = self.pos
+                while tmp < len(self.text) and self.text[tmp] not in ("\n", "\r"):
+                    if self.text[tmp] not in (" ", "\t"):
+                        all_ws = False
+                        break
+                    tmp += 1
+                if all_ws:
+                    # Blank line with insufficient indentation — treat as empty
+                    # For literal scalars we preserve the extra spaces
+                    if style == "|" and spaces > 0:
+                        # spaces that are beyond block_indent (if any) should be kept
+                        # but block_indent may not be set yet; just record spaces minus block_indent
+                        extra = " " * max(0, spaces - block_indent) if block_indent >= 0 else ""
+                        lines.append(extra)
+                    else:
+                        lines.append("")
+                    # Advance past whitespace content and newline
+                    while self.pos < len(self.text) and self.peek() not in ("\n", "\r"):
+                        self.advance()
+                    if self.pos < len(self.text):
+                        ch2 = self.advance()
+                        if ch2 == "\r" and self.peek() == "\n":
+                            self.advance()
+                    continue
+                else:
+                    # Real content at lower indent — end of block scalar
+                    self.pos = line_start
+                    break
 
             # Read rest of line (remove block_indent leading spaces)
-            content = []
-            # We've already consumed 'spaces' spaces; need block_indent of them
             # Re-position to block_indent
             self.pos = line_start
             for _ in range(block_indent):
                 if self.peek() == " ":
                     self.advance()
 
+            content = []
             while self.pos < len(self.text) and self.peek() not in ("\n", "\r"):
                 content.append(self.advance())
             lines.append("".join(content))
@@ -823,9 +1067,19 @@ class Scanner:
             return _fold_block(lines, chomping)
 
     def _scan_plain(self, indent, block=True, in_key=False) -> str:
-        """Scan a plain (unquoted) scalar."""
+        """Scan a plain (unquoted) scalar.
+
+        Multi-line folding (YAML 1.2 spec §7.3.3):
+        - continuation lines are separated by a space from the previous line
+        - a single blank line between content lines produces a \\n separator
+        - multiple blank lines produce extra \\n characters
+        - trailing blank lines are NOT included in the scalar
+        """
         lines = []
         current = []
+        # Buffer for blank lines seen between content lines.
+        # These are only committed to `lines` when we confirm more content follows.
+        pending_blanks = 0
 
         while self.pos < len(self.text):
             ch = self.peek()
@@ -840,39 +1094,56 @@ class Scanner:
             if ch in ("\n", "\r"):
                 if in_key:
                     break
-                # Fold lines
+                # Save current line content
                 line_val = "".join(current).rstrip(" \t")
-                if line_val:
-                    lines.append(line_val)
-                elif lines:
-                    lines.append("")
                 current = []
+                if line_val:
+                    # Flush any pending blank lines before adding this content
+                    for _ in range(pending_blanks):
+                        lines.append("")
+                    pending_blanks = 0
+                    lines.append(line_val)
+                # Advance past this newline
                 self.advance()
                 if ch == "\r" and self.peek() == "\n":
                     self.advance()
-                # Skip leading whitespace on next line
-                col_before = self.current_column()
-                while self.peek() in (" ", "\t"):
-                    self.advance()
-                col_after = self.current_column()
-                # Check if next line is still in the scalar
-                next_ch = self.peek()
-                if next_ch == "":
-                    break  # EOF — end of scalar, no trailing newline
-                if next_ch in ("\n", "\r"):
-                    lines.append("")
-                    continue
-                if next_ch == "#":
-                    # Comment — end of scalar
+                # Process subsequent lines (blank or continuation)
+                while True:
+                    # Skip leading whitespace on this line (tabs too)
+                    while self.peek() in (" ", "\t"):
+                        self.advance()
+                    next_ch = self.peek()
+                    if next_ch == "":
+                        # EOF — stop scalar
+                        pending_blanks = 0
+                        return self._join_plain_lines(lines)
+                    if next_ch in ("\n", "\r"):
+                        # Blank line — buffer it, advance
+                        pending_blanks += 1
+                        self.advance()
+                        if next_ch == "\r" and self.peek() == "\n":
+                            self.advance()
+                        continue
+                    # Non-blank line — check if it belongs to this scalar
+                    if next_ch == "#":
+                        # Comment — end of scalar
+                        pending_blanks = 0
+                        return self._join_plain_lines(lines)
+                    next_col = self.current_column()
+                    if block and next_col < indent:
+                        # Dedent — end of scalar
+                        pending_blanks = 0
+                        return self._join_plain_lines(lines)
+                    if self.text[self.pos:self.pos+3] in ("---", "..."):
+                        after = self.text[self.pos+3:self.pos+4]
+                        if after in ("", " ", "\t", "\n", "\r"):
+                            pending_blanks = 0
+                            return self._join_plain_lines(lines)
+                    # Continuation line — commit pending blanks
+                    for _ in range(pending_blanks):
+                        lines.append("")
+                    pending_blanks = 0
                     break
-                next_col = self.current_column()
-                if block and next_col < indent:
-                    # Dedent — end of scalar
-                    break
-                if self.text[self.pos:self.pos+3] in ("---", "..."):
-                    after = self.text[self.pos+3:self.pos+4]
-                    if after in ("", " ", "\t", "\n", "\r"):
-                        break
                 continue
 
             # Flow indicators only terminate plain scalars in flow context
@@ -899,14 +1170,20 @@ class Scanner:
 
         val = "".join(current).rstrip(" \t")
         if val:
+            # Flush pending blanks before final content
+            for _ in range(pending_blanks):
+                lines.append("")
             lines.append(val)
+        # trailing pending_blanks are discarded (they follow the last content line)
 
-        # Fold lines: empty lines become \n, others join with space
+        return self._join_plain_lines(lines)
+
+    def _join_plain_lines(self, lines: list) -> str:
+        """Fold plain scalar lines: empty lines become \\n, others join with space."""
         if not lines:
             return ""
         if len(lines) == 1:
             return lines[0]
-
         result = []
         for i, line in enumerate(lines):
             if line == "":
@@ -964,9 +1241,29 @@ class Scanner:
                 continue
             if self.pos >= len(self.text):
                 break
+            # Explicit key indicator '?' inside flow sequence → single-pair flow mapping
+            if self.peek() == "?" and self.peek(1) in (" ", "\t", "\n", "\r", ""):
+                self.advance()
+                self.skip_whitespace_and_comments(newlines=True)
+                yield Token(TOK_FLOW_MAP_START, line=self.line)
+                yield Token(TOK_KEY, line=self.line)
+                yield from self._scan_node(0, block=False)  # key (multi-line plain OK)
+                self.skip_whitespace_and_comments(newlines=True)
+                if self.peek() == ":" and self.peek(1) in (" ", "\t", "\n", "\r", ""):
+                    self.advance()
+                    yield Token(TOK_VALUE, line=self.line)
+                    self.skip_whitespace_and_comments(newlines=True)
+                    if self.peek() not in (",", "]", "}"):
+                        yield from self._scan_node(0, block=False)
+                    else:
+                        yield Token(TOK_SCALAR, value="", style=None, line=self.line)
+                else:
+                    yield Token(TOK_VALUE, line=self.line)
+                    yield Token(TOK_SCALAR, value="", style=None, line=self.line)
+                yield Token(TOK_FLOW_MAP_END, line=self.line)
             # Detect implicit single-pair flow mapping: key: value inside a sequence
             # e.g. [foo: bar, baz: qux] is equivalent to [{foo: bar}, {baz: qux}]
-            if self._looks_like_flow_map_entry():
+            elif self._looks_like_flow_map_entry():
                 yield Token(TOK_FLOW_MAP_START, line=self.line)
                 yield Token(TOK_KEY, line=self.line)
                 yield from self._scan_node(0, block=False)  # key
@@ -1003,9 +1300,9 @@ class Scanner:
             # Check for empty value (trailing comma case)
             if self.peek() == "}":
                 continue
-            # Key
+            # Key — explicit key indicator '?' only when followed by whitespace/newline
             yield Token(TOK_KEY, line=self.line)
-            if self.peek() == "?":
+            if self.peek() == "?" and self.peek(1) in (" ", "\t", "\n", "\r", ""):
                 self.advance()
                 self.skip_whitespace_and_comments(newlines=True)
             yield from self._scan_node(0, block=False)
@@ -1069,18 +1366,29 @@ def _resolve(value: str, style) -> object:
 
 
 def _resolve_tagged(tag: str, value: str, style) -> object:
-    """Apply explicit tag coercion."""
+    """Apply explicit tag coercion.
+
+    Only applies standard YAML 1.2 tags (!!str, !!int, !!float, etc.).
+    Custom/unknown tags return the value as-is (string).
+    """
     if tag in ("!!str", "!str"):
         return str(value) if value is not None else ""
     if tag in ("!!int", "!int"):
-        v = value.strip()
-        if _RE_INT_HEX.match(v):
-            return int(v, 16)
-        if _RE_INT_OCT.match(v):
-            return int(v, 8)
-        return int(v, 10)
+        v = value.strip() if isinstance(value, str) else str(value)
+        try:
+            if _RE_INT_HEX.match(v):
+                return int(v, 16)
+            if _RE_INT_OCT.match(v):
+                return int(v, 8)
+            return int(v, 10)
+        except (ValueError, TypeError):
+            # Non-standard tag mapping or invalid value — return as string
+            return value
     if tag in ("!!float", "!float"):
-        return float(value)
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return value
     if tag in ("!!bool", "!bool"):
         return _RE_BOOL_TRUE.match(value.strip()) is not None
     if tag in ("!!null", "!null"):
@@ -1089,7 +1397,7 @@ def _resolve_tagged(tag: str, value: str, style) -> object:
         return value if isinstance(value, list) else []
     if tag in ("!!map", "!map"):
         return value if isinstance(value, dict) else {}
-    # Unknown tags: return value as-is
+    # Unknown/custom tags (e.g. from %TAG directives): return scalar value as-is
     return value
 
 
@@ -1151,6 +1459,39 @@ class Parser:
                 result = self.parse_node()
                 break
         return result
+
+    def parse_all(self) -> list:
+        """Parse the full stream and return ALL documents as a list."""
+        self.expect(TOK_STREAM_START)
+        docs = []
+        while self.peek().type not in (TOK_STREAM_END,):
+            tok = self.peek()
+            if tok.type == TOK_DOCUMENT_START:
+                self.consume()
+                if self.peek().type in (TOK_DOCUMENT_END, TOK_DOCUMENT_START, TOK_STREAM_END):
+                    docs.append(None)
+                else:
+                    docs.append(self.parse_node())
+                # Drain any remaining tokens from this document before the next --- / end
+                while self.peek().type not in (TOK_DOCUMENT_START, TOK_DOCUMENT_END,
+                                               TOK_STREAM_END):
+                    self.consume()  # discard stray tokens (shouldn't happen in valid YAML)
+                # Consume optional document-end marker
+                if self.peek().type == TOK_DOCUMENT_END:
+                    self.consume()
+            elif tok.type == TOK_DIRECTIVE:
+                self.consume()
+            elif tok.type == TOK_DOCUMENT_END:
+                self.consume()
+            else:
+                # Implicit document or stray token — try to parse a node, then drain
+                docs.append(self.parse_node())
+                while self.peek().type not in (TOK_DOCUMENT_START, TOK_DOCUMENT_END,
+                                               TOK_STREAM_END):
+                    self.consume()
+                if self.peek().type == TOK_DOCUMENT_END:
+                    self.consume()
+        return docs
 
     def parse_node(self) -> object:
         tok = self.peek()
@@ -1297,6 +1638,23 @@ def parse(text: str) -> object:
     Returns the Python value of the first document in the stream.
     Raises YAMLError on parse failure.
     """
+    # Strip UTF-8 BOM if present
+    if text.startswith("\uFEFF"):
+        text = text[1:]
     scanner = Scanner(text)
     parser = Parser(scanner.token_stream())
     return parser.parse()
+
+
+def parse_all(text: str) -> list:
+    """Parse a YAML 1.2 stream from *text*.
+
+    Returns a list of Python values, one per document in the stream.
+    Raises YAMLError on parse failure.
+    """
+    # Strip UTF-8 BOM if present
+    if text.startswith("\uFEFF"):
+        text = text[1:]
+    scanner = Scanner(text)
+    parser = Parser(scanner.token_stream())
+    return parser.parse_all()

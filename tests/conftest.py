@@ -30,3 +30,24 @@ def _load_cases():
 def yaml_test_case(request):
     """Yields (test_id, in_yaml_path, in_json_path) for each yaml-test-suite case."""
     return request.param
+
+
+def _load_error_cases():
+    """Load yaml-test-suite cases that represent invalid YAML (have an 'error' marker)."""
+    cases = []
+    if not os.path.isdir(SUITE_DIR):
+        return cases
+    for entry in sorted(os.listdir(SUITE_DIR)):
+        path = os.path.join(SUITE_DIR, entry)
+        if not os.path.isdir(path):
+            continue
+        in_yaml = os.path.join(path, "in.yaml")
+        if os.path.exists(in_yaml) and os.path.exists(os.path.join(path, "error")):
+            cases.append(pytest.param((entry, in_yaml), id=entry))
+    return cases
+
+
+@pytest.fixture(params=_load_error_cases())
+def yaml_error_case(request):
+    """Yields (test_id, in_yaml_path) for each yaml-test-suite error case."""
+    return request.param
