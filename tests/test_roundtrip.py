@@ -2,12 +2,13 @@
 import os
 import string
 import sys
+import tempfile
 
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from yamlwav import WavConfig, decode, encode_dict
+from yamlwav import WavConfig, decode, encode, encode_dict
 
 
 def test_roundtrip_basic_types(tmp_path):
@@ -65,6 +66,60 @@ def test_type_coercion(tmp_path):
     assert cfg["a_null"] is None
     assert cfg["a_tilde"] is None
     assert cfg["a_string"] == "hello"
+
+
+def test_roundtrip_nested_dict(tmp_path):
+    """Nested dicts survive encode_dict → WAV → WavConfig with nested access."""
+    wav = str(tmp_path / "nested.wav")
+    data = {
+        "db": {"host": "localhost", "port": 5432},
+        "server": {"debug": True, "workers": 4},
+        "name": "myapp",
+    }
+    encode_dict(data, wav)
+    cfg = WavConfig(wav)
+
+    assert cfg["db"]["host"] == "localhost"
+    assert cfg["db"]["port"] == 5432
+    assert cfg["server"]["debug"] is True
+    assert cfg["server"]["workers"] == 4
+    assert cfg["name"] == "myapp"
+
+    nested = cfg.to_nested()
+    assert nested == {
+        "db": {"host": "localhost", "port": 5432},
+        "server": {"debug": True, "workers": 4},
+        "name": "myapp",
+    }
+
+
+def test_roundtrip_nested_yaml(tmp_path):
+    """Nested YAML files are parsed and survive encode → WAV → WavConfig."""
+    yaml_content = """\
+database:
+  host: db.example.com
+  port: 5432
+  replica:
+    host: replica.example.com
+    port: 5433
+app:
+  name: yamlwav
+  debug: false
+"""
+    yaml_path = str(tmp_path / "nested.yaml")
+    wav_path = str(tmp_path / "nested.wav")
+    with open(yaml_path, "w") as f:
+        f.write(yaml_content)
+
+    encode(yaml_path, wav_path)
+    cfg = WavConfig(wav_path)
+
+    assert cfg["database"]["host"] == "db.example.com"
+    assert cfg["database"]["port"] == 5432
+    assert cfg["database"]["replica"]["host"] == "replica.example.com"
+    assert cfg["database"]["replica"]["port"] == 5433
+    assert cfg["app"]["name"] == "yamlwav"
+    assert cfg["app"]["debug"] is False
 
 
 def test_determinism(tmp_path):

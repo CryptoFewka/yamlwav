@@ -7,20 +7,46 @@ from .goertzel import AMPLITUDE, SAMPLE_RATE, SAMPLES_PER_CHAR, char_to_freq
 
 
 def _parse_yaml(path: str) -> dict:
-    """Hand-rolled parser for flat key: value YAML (no external dependencies)."""
+    """Hand-rolled parser for key: value YAML supporting arbitrary nesting.
+
+    Nested keys are flattened to dot-notation (e.g. db.host, db.port).
+    No external dependencies.
+    """
     result = {}
+    prefix_stack = []  # list of (indent_level, dotted_prefix)
     with open(path, "r") as fh:
         for line in fh:
-            line = line.strip()
-            if not line or line.startswith("#"):
+            raw = line.rstrip("\n")
+            stripped = raw.lstrip()
+            if not stripped or stripped.startswith("#"):
                 continue
-            if ":" not in line:
+            if ":" not in stripped:
                 continue
-            key, _, value = line.partition(":")
+            indent = len(raw) - len(stripped)
+            while prefix_stack and prefix_stack[-1][0] >= indent:
+                prefix_stack.pop()
+            key, _, value = stripped.partition(":")
             key = key.strip()
             value = value.strip()
-            if key:
-                result[key] = value
+            if not key:
+                continue
+            full_key = f"{prefix_stack[-1][1]}.{key}" if prefix_stack else key
+            if value:
+                result[full_key] = value
+            else:
+                prefix_stack.append((indent, full_key))
+    return result
+
+
+def _flatten_dict(d: dict, prefix: str = "") -> dict:
+    """Recursively flatten a nested dict to dot-notation keys."""
+    result = {}
+    for k, v in d.items():
+        full_key = f"{prefix}.{k}" if prefix else k
+        if isinstance(v, dict):
+            result.update(_flatten_dict(v, full_key))
+        else:
+            result[full_key] = v
     return result
 
 
@@ -73,10 +99,12 @@ def encode(yaml_path: str, wav_path: str) -> None:
 
 
 def encode_dict(data: dict, wav_path: str) -> None:
-    """Encode a plain dict (string keys and string values) as a WAV file.
+    """Encode a dict as a WAV file. Nested dicts are supported and flattened
+    to dot-notation keys (e.g. {"db": {"host": "x"}} → key "db.host").
 
     Values are converted to strings via str() before encoding.
     """
+    data = _flatten_dict(data)
     keys = list(data.keys())
     manifest = "\x00".join(keys)
     channels = [_encode_string(manifest)]
