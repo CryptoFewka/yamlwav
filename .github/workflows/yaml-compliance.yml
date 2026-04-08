@@ -32,7 +32,7 @@ jobs:
           import os, json, sys, signal
 
           sys.path.insert(0, ".")
-          from yamlwav.yaml_parser import parse
+          from yamlwav.yaml_parser import parse, parse_all
 
           SUITE = "tests/yaml-test-suite"
 
@@ -54,8 +54,30 @@ jobs:
               signal.alarm(5)
               try:
                   raw = open(in_json).read().strip()
-                  expected = json.loads(raw) if raw else None
-                  result = parse(open(in_yaml).read())
+                  if not raw:
+                      expected, is_multi = None, False
+                  else:
+                      try:
+                          expected, is_multi = json.loads(raw), False
+                      except json.JSONDecodeError as exc:
+                          if "Extra data" not in str(exc):
+                              raise
+                          docs = []
+                          decoder = json.JSONDecoder()
+                          idx = 0
+                          while idx < len(raw):
+                              while idx < len(raw) and raw[idx] in " \t\n\r":
+                                  idx += 1
+                              if idx >= len(raw):
+                                  break
+                              value, end = decoder.raw_decode(raw, idx)
+                              docs.append(value)
+                              idx = end
+                          expected, is_multi = docs, True
+                  if is_multi:
+                      result = parse_all(open(in_yaml).read())
+                  else:
+                      result = parse(open(in_yaml).read())
                   signal.alarm(0)
                   if result == expected:
                       passed += 1
