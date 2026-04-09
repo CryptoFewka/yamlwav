@@ -103,16 +103,21 @@ def _write_output(wav_bytes: bytes, wav_path: str, compress: bool) -> None:
             fh.write(wav_bytes)
 
 
-def encode(yaml_path: str, wav_path: str, compress: bool = True) -> None:
+def encode(yaml_path: str, wav_path: str = None, compress: bool = False) -> None:
     """Encode a flat YAML config file as a multi-channel WAV audio file.
 
     Channel 0 holds the key manifest (key names separated by null bytes).
     Channels 1..N each hold one config value, in the same order as the manifest.
 
-    When compress is True (the default) the output is a zip-compressed file.
-    Decoders auto-detect the format, so the choice is transparent to callers
-    of decode() and WavConfig. Pass compress=False to write raw PCM WAV.
+    If wav_path is not given, the output path is yaml_path + ".wav" (e.g.
+    "config.yaml" → "config.yaml.wav").
+
+    Pass compress=True to wrap the output in a zip archive. Decoders
+    auto-detect the format, so the choice is transparent to decode() and
+    WavConfig callers.
     """
+    if wav_path is None:
+        wav_path = yaml_path + ".wav"
     config = _parse_yaml(yaml_path)
     keys = list(config.keys())
 
@@ -124,14 +129,13 @@ def encode(yaml_path: str, wav_path: str, compress: bool = True) -> None:
     _write_output(_build_wav_bytes(channels), wav_path, compress)
 
 
-def encode_dict(data: dict, wav_path: str, compress: bool = True) -> None:
+def encode_dict(data: dict, wav_path: str, compress: bool = False) -> None:
     """Encode a dict as a WAV file. Nested dicts are supported and flattened
     to dot-notation keys (e.g. {"db": {"host": "x"}} → key "db.host").
 
     Values are converted to strings via str() before encoding.
 
-    When compress is True (the default) the output is a zip-compressed file.
-    Pass compress=False to write raw PCM WAV.
+    Pass compress=True to wrap the output in a zip archive.
     """
     data = _flatten_dict(data)
     keys = list(data.keys())

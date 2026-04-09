@@ -1,9 +1,10 @@
 """Command-line interface for yamlwav.
 
 Usage:
-    python -m yamlwav encode config.yaml config.wav
-    python -m yamlwav encode config.yaml config.wav --no-compress
-    python -m yamlwav decode config.wav
+    python -m yamlwav encode config.yaml
+    python -m yamlwav encode config.yaml config.yaml.wav
+    python -m yamlwav encode config.yaml --compress
+    python -m yamlwav decode config.yaml.wav
 """
 import argparse
 
@@ -19,13 +20,18 @@ def main():
 
     enc = sub.add_parser("encode", help="Encode a YAML file to a WAV file")
     enc.add_argument("yaml_path", help="Input YAML file")
-    enc.add_argument("wav_path", help="Output WAV file")
     enc.add_argument(
-        "--no-compress",
+        "wav_path",
+        nargs="?",
+        default=None,
+        help="Output file (default: <yaml_path>.wav, e.g. config.yaml → config.yaml.wav)",
+    )
+    enc.add_argument(
+        "--compress",
         dest="compress",
-        action="store_false",
-        default=True,
-        help="Write raw uncompressed PCM WAV instead of zip-compressed output",
+        action="store_true",
+        default=False,
+        help="Wrap output in a zip archive to reduce file size",
     )
 
     dec = sub.add_parser("decode", help="Decode a yamlwav file to key: value pairs")
