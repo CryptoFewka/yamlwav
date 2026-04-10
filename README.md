@@ -1,4 +1,4 @@
-![yamlwav social preview](social_preview.png)
+![yamlwav social preview](https://raw.githubusercontent.com/CryptoFewka/yamlwav/main/social_preview.png)
 
 # yamlwav - Configuration via .wav? Sounds good to me.
 
