@@ -51,8 +51,8 @@ inputs:
   format:
     description: >
       (decode) Comma-separated output formats: outputs, env, dotenv, json.
-      - outputs: set as step outputs (use ${{ steps.id.outputs.KEY }})
-      - env: write to $GITHUB_ENV for subsequent steps
+      - outputs: set as step outputs (use steps.<id>.outputs.<KEY>)
+      - env: write to GITHUB_ENV for subsequent steps
       - dotenv: write a .env file
       - json: write a JSON file
     required: false
