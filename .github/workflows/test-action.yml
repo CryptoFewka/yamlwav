@@ -1,0 +1,327 @@
+name: Test Action
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test-encode-basic:
+    name: Encode basic
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Encode sample config
+        id: yamlwav
+        uses: ./
+        with:
+          files: examples/sample_config.yaml
+
+      - name: Verify output exists
+        run: test -f examples/sample_config.yaml.wav
+
+      - name: Verify file count
+        run: test "${{ steps.yamlwav.outputs.file-count }}" = "1"
+
+      - name: Verify roundtrip
+        run: |
+          python -c "
+          from yamlwav import decode
+          d = decode('examples/sample_config.yaml.wav')
+          assert d['host'] == 'localhost', f'Expected localhost, got {d[\"host\"]}'
+          assert d['port'] == '8080', f'Expected 8080, got {d[\"port\"]}'
+          print('Roundtrip OK:', d)
+          "
+
+  test-encode-compress:
+    name: Encode compressed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ./
+        with:
+          files: examples/sample_config.yaml
+          compress: "true"
+          output-dir: output
+
+      - name: Verify compressed output
+        run: |
+          test -f output/sample_config.yaml.wav
+          python3 -c "
+          import zipfile
+          assert zipfile.is_zipfile('output/sample_config.yaml.wav'), 'Not a zip file'
+          print('Compression verified')
+          "
+
+      - name: Verify compressed roundtrip
+        run: |
+          python -c "
+          from yamlwav import decode
+          d = decode('output/sample_config.yaml.wav')
+          assert d['host'] == 'localhost'
+          print('Compressed roundtrip OK')
+          "
+
+  test-encode-glob:
+    name: Encode glob
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Create extra YAML files
+        run: |
+          echo "key: value1" > examples/extra1.yaml
+          echo "key: value2" > examples/extra2.yaml
+
+      - uses: ./
+        id: yamlwav
+        with:
+          files: examples/*.yaml
+
+      - name: Verify multiple files encoded
+        run: |
+          count="${{ steps.yamlwav.outputs.file-count }}"
+          echo "Encoded $count files"
+          test "$count" -ge "3"
+
+  test-encode-upload:
+    name: Encode with artifact upload
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ./
+        with:
+          files: examples/sample_config.yaml
+          upload-artifact: "true"
+          artifact-name: test-wav-upload
+
+  test-decode-json-output:
+    name: Decode to JSON step output
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Encode first
+        uses: ./
+        with:
+          files: examples/sample_config.yaml
+
+      - name: Decode
+        id: cfg
+        uses: ./
+        with:
+          file: examples/sample_config.yaml.wav
+
+      - name: Verify JSON output
+        run: |
+          echo "HOST=${{ fromJSON(steps.cfg.outputs.json).HOST }}"
+          echo "PORT=${{ fromJSON(steps.cfg.outputs.json).PORT }}"
+          echo "DEBUG=${{ fromJSON(steps.cfg.outputs.json).DEBUG }}"
+          test "${{ fromJSON(steps.cfg.outputs.json).HOST }}" = "localhost"
+          test "${{ fromJSON(steps.cfg.outputs.json).PORT }}" = "8080"
+          test "${{ fromJSON(steps.cfg.outputs.json).DEBUG }}" = "true"
+
+  test-decode-env:
+    name: Decode to env vars
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Encode first
+        uses: ./
+        with:
+          files: examples/sample_config.yaml
+
+      - name: Decode to env
+        uses: ./
+        with:
+          file: examples/sample_config.yaml.wav
+          format: env
+          prefix: APP_
+
+      - name: Verify env vars
+        run: |
+          echo "APP_HOST=$APP_HOST"
+          echo "APP_PORT=$APP_PORT"
+          test "$APP_HOST" = "localhost"
+          test "$APP_PORT" = "8080"
+
+  test-decode-dotenv:
+    name: Decode to .env file
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Encode first
+        uses: ./
+        with:
+          files: examples/sample_config.yaml
+
+      - name: Decode to .env
+        uses: ./
+        with:
+          file: examples/sample_config.yaml.wav
+          format: dotenv
+          output: config.env
+
+      - name: Verify .env file
+        run: |
+          cat config.env
+          grep -q "HOST=localhost" config.env
+          grep -q "PORT=8080" config.env
+
+  test-decode-json-file:
+    name: Decode to JSON file
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Encode first
+        uses: ./
+        with:
+          files: examples/sample_config.yaml
+
+      - name: Decode to JSON
+        uses: ./
+        with:
+          file: examples/sample_config.yaml.wav
+          format: json
+          output: config.json
+
+      - name: Verify JSON file
+        run: |
+          cat config.json
+          python3 -c "
+          import json
+          with open('config.json') as f:
+              data = json.load(f)
+          assert data['HOST'] == 'localhost', f'Got {data[\"HOST\"]}'
+          assert data['PORT'] == '8080'
+          print('JSON verified:', data)
+          "
+
+  test-decode-prefix:
+    name: Decode with prefix
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Encode first
+        uses: ./
+        with:
+          files: examples/sample_config.yaml
+
+      - name: Decode with prefix
+        id: cfg
+        uses: ./
+        with:
+          file: examples/sample_config.yaml.wav
+          prefix: CFG_
+
+      - name: Verify prefixed outputs
+        run: |
+          test "${{ fromJSON(steps.cfg.outputs.json).CFG_HOST }}" = "localhost"
+          test "${{ fromJSON(steps.cfg.outputs.json).CFG_PORT }}" = "8080"
+
+  test-decode-transform:
+    name: Decode key transforms
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Encode first
+        uses: ./
+        with:
+          files: examples/sample_config.yaml
+
+      - name: Decode with flat transform
+        id: flat
+        uses: ./
+        with:
+          file: examples/sample_config.yaml.wav
+          key-transform: flat
+
+      - name: Verify flat keys
+        run: |
+          test "${{ fromJSON(steps.flat.outputs.json).host }}" = "localhost"
+          test "${{ fromJSON(steps.flat.outputs.json).port }}" = "8080"
+
+      - name: Decode with preserve transform
+        id: preserve
+        uses: ./
+        with:
+          file: examples/sample_config.yaml.wav
+          key-transform: preserve
+
+      - name: Verify preserved keys
+        run: |
+          test "${{ fromJSON(steps.preserve.outputs.json).host }}" = "localhost"
+          test "${{ fromJSON(steps.preserve.outputs.json).port }}" = "8080"
+
+  test-roundtrip:
+    name: Full roundtrip
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Encode with compression
+        uses: ./
+        with:
+          files: examples/sample_config.yaml
+          compress: "true"
+
+      - name: Decode compressed WAV
+        id: cfg
+        uses: ./
+        with:
+          file: examples/sample_config.yaml.wav
+          format: env,dotenv,json
+
+      - name: Verify all formats
+        run: |
+          # JSON step output (always available)
+          test "${{ fromJSON(steps.cfg.outputs.json).HOST }}" = "localhost"
+
+          # Env vars
+          test "$HOST" = "localhost"
+
+          # .env file
+          test -f .env
+          grep -q "HOST=localhost" .env
+
+          # JSON file (defaults to config.json)
+          python3 -c "
+          import json
+          with open('config.json') as f:
+              data = json.load(f)
+          assert data['HOST'] == 'localhost'
+          print('Full roundtrip OK')
+          "
+
+  test-python-versions:
+    name: Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.9", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Encode
+        uses: ./
+        with:
+          files: examples/sample_config.yaml
+          python-version: ${{ matrix.python }}
+
+      - name: Decode
+        id: cfg
+        uses: ./
+        with:
+          file: examples/sample_config.yaml.wav
+          python-version: ${{ matrix.python }}
+
+      - name: Verify
+        run: test "${{ fromJSON(steps.cfg.outputs.json).HOST }}" = "localhost"

@@ -133,6 +133,85 @@ yamlwav encode config.yaml output.yaml.wav
 yamlwav decode config.yaml.wav
 ```
 
+## GitHub Action
+
+yamlwav is available as a GitHub Action for encoding YAML files to WAV and decoding them back to CI-usable formats.
+
+### Encode YAML to WAV
+
+```yaml
+- uses: CryptoFewka/yamlwav@v1
+  with:
+    files: config.yaml
+```
+
+With all options:
+
+```yaml
+- uses: CryptoFewka/yamlwav@v1
+  with:
+    files: |
+      configs/**/*.yaml
+      settings/*.yml
+    compress: "true"
+    output-dir: wav-output
+    upload-artifact: "true"
+    artifact-name: config-audio-${{ github.sha }}
+```
+
+### Decode WAV to step outputs
+
+```yaml
+- name: Decode config
+  id: cfg
+  uses: CryptoFewka/yamlwav@v1
+  with:
+    file: config.yaml.wav
+
+# All decoded values are available via fromJSON()
+- run: echo "Host is ${{ fromJSON(steps.cfg.outputs.json).HOST }}"
+```
+
+### Decode WAV to environment variables
+
+```yaml
+- uses: CryptoFewka/yamlwav@v1
+  with:
+    file: config.yaml.wav
+    format: env
+    prefix: APP_
+
+- run: echo "Host is $APP_HOST"
+```
+
+### Decode WAV to .env or JSON file
+
+```yaml
+- uses: CryptoFewka/yamlwav@v1
+  with:
+    file: config.yaml.wav
+    format: dotenv
+    output: .env
+```
+
+### Action inputs
+
+| Input | Mode | Default | Description |
+|---|---|---|---|
+| `mode` | both | auto | `encode` or `decode`. Auto-detected from `files`/`file` if omitted. |
+| `files` | encode | | YAML files or glob patterns (newline-separated). |
+| `file` | decode | | Single `.yaml.wav` file to decode. |
+| `compress` | encode | `false` | Zip compression (~95% size reduction). |
+| `output-dir` | encode | | Directory for WAV output. |
+| `upload-artifact` | encode | `false` | Upload WAV files as GitHub Actions artifacts. |
+| `artifact-name` | encode | `yamlwav-files` | Name for the uploaded artifact. |
+| `format` | decode | | Comma-separated: `env`, `dotenv`, `json`. All values always available via `json` output. |
+| `prefix` | decode | | Prefix for output keys (e.g. `APP_`). |
+| `key-transform` | decode | `upper` | `upper` (`db.host` -> `DB_HOST`), `flat` (`db_host`), `preserve`. |
+| `mask-values` | decode | `false` | Mask all decoded values in logs. |
+| `output` | decode | | File path for dotenv/json output. |
+| `python-version` | both | `3.x` | Python version. |
+
 ## API
 
 ```python

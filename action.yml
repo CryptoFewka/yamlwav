@@ -1,0 +1,142 @@
+name: "yamlwav - YAML to WAV Audio"
+description: "Encode YAML configs as playable WAV audio, or decode WAV back to CI/CD outputs (.env, step outputs, env vars, JSON)"
+author: "Sarcasm Heavy Industries LLC"
+
+branding:
+  icon: "music"
+  color: "purple"
+
+inputs:
+  mode:
+    description: >
+      Operation mode: encode or decode.
+      Auto-detected from inputs if omitted (files → encode, file → decode).
+    required: false
+    default: ""
+
+  files:
+    description: >
+      (encode) YAML files to convert. Supports glob patterns and newline-separated lists.
+      Examples: "config.yaml", "configs/*.yaml", "src/**/*.yml"
+    required: false
+    default: ""
+
+  file:
+    description: "(decode) Single .yaml.wav file to decode."
+    required: false
+    default: ""
+
+  compress:
+    description: "(encode) Wrap output in zip archive for ~95% size reduction."
+    required: false
+    default: "false"
+
+  output-dir:
+    description: >
+      (encode) Directory to write .yaml.wav files into.
+      Defaults to same directory as each input file.
+    required: false
+    default: ""
+
+  upload-artifact:
+    description: "(encode) Upload generated .yaml.wav files as a GitHub Actions artifact."
+    required: false
+    default: "false"
+
+  artifact-name:
+    description: "(encode) Name for the uploaded artifact."
+    required: false
+    default: "yamlwav-files"
+
+  format:
+    description: >
+      (decode) Comma-separated output formats: env, dotenv, json.
+      - env: write to GITHUB_ENV for subsequent steps
+      - dotenv: write a .env file
+      - json: write a JSON file
+      All decoded values are always available via the 'json' output
+      (use fromJSON(steps.<id>.outputs.json).KEY to access individual values).
+    required: false
+    default: ""
+
+  prefix:
+    description: '(decode) Prefix for output keys. Example: "APP_" makes db.host → APP_DB_HOST'
+    required: false
+    default: ""
+
+  key-transform:
+    description: >
+      (decode) Key name transformation:
+      - upper: db.host → DB_HOST (default)
+      - flat: db.host → db_host
+      - preserve: db.host → db.host
+    required: false
+    default: "upper"
+
+  mask-values:
+    description: "(decode) Mask all decoded values in logs with ::add-mask::"
+    required: false
+    default: "false"
+
+  output:
+    description: "(decode) Output file path for dotenv or json format."
+    required: false
+    default: ""
+
+  python-version:
+    description: "Python version to use."
+    required: false
+    default: "3.x"
+
+outputs:
+  files:
+    description: "(encode) Newline-separated list of generated .yaml.wav file paths."
+    value: ${{ steps.run.outputs.files }}
+
+  file-count:
+    description: "(encode) Number of .yaml.wav files generated."
+    value: ${{ steps.run.outputs.file-count }}
+
+  artifact-id:
+    description: "(encode) Artifact ID if upload-artifact was enabled."
+    value: ${{ steps.upload.outputs.artifact-id }}
+
+  json:
+    description: "(decode) All decoded key-value pairs as a JSON string. Use fromJSON() to access individual values."
+    value: ${{ steps.run.outputs.json }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install yamlwav
+      shell: bash
+      run: pip install "${{ github.action_path }}"
+
+    - name: Run yamlwav
+      id: run
+      shell: bash
+      env:
+        INPUT_MODE: ${{ inputs.mode }}
+        INPUT_FILES: ${{ inputs.files }}
+        INPUT_FILE: ${{ inputs.file }}
+        INPUT_COMPRESS: ${{ inputs.compress }}
+        INPUT_OUTPUT_DIR: ${{ inputs.output-dir }}
+        INPUT_FORMAT: ${{ inputs.format }}
+        INPUT_PREFIX: ${{ inputs.prefix }}
+        INPUT_KEY_TRANSFORM: ${{ inputs.key-transform }}
+        INPUT_MASK_VALUES: ${{ inputs.mask-values }}
+        INPUT_OUTPUT: ${{ inputs.output }}
+      run: python "${{ github.action_path }}/action_runner.py"
+
+    - name: Upload artifact
+      id: upload
+      if: inputs.upload-artifact == 'true'
+      uses: actions/upload-artifact@v6
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ steps.run.outputs.files }}
