@@ -38,13 +38,16 @@ def _github_env(key: str, value: str) -> None:
             f.write(f"{key}={value}\n")
 
 
+_VALID_TRANSFORMS = ("upper", "flat", "preserve")
+
+
 def _transform_key(key: str, mode: str, prefix: str) -> str:
     """Transform a dot-notation key based on the chosen mode and prefix."""
     if mode == "upper":
         transformed = key.replace(".", "_").replace("-", "_").upper()
     elif mode == "flat":
         transformed = key.replace(".", "_").replace("-", "_")
-    else:  # preserve
+    else:  # preserve (validated in decode_mode)
         transformed = key
     return prefix + transformed
 
@@ -119,6 +122,13 @@ def decode_mode() -> None:
         print(f"::error::File not found: {file_input}")
         sys.exit(1)
 
+    if key_transform not in _VALID_TRANSFORMS:
+        print(
+            f"::warning::Unknown key-transform '{key_transform}', "
+            f"falling back to 'upper'"
+        )
+        key_transform = "upper"
+
     data = decode(file_input)
     print(f"Decoded {len(data)} key(s) from {file_input}")
 
@@ -191,13 +201,19 @@ def detect_mode() -> str:
 
 
 def main() -> None:
-    mode = detect_mode()
-    print(f"Mode: {mode}")
+    try:
+        mode = detect_mode()
+        print(f"Mode: {mode}")
 
-    if mode == "encode":
-        encode_mode()
-    else:
-        decode_mode()
+        if mode == "encode":
+            encode_mode()
+        else:
+            decode_mode()
+    except SystemExit:
+        raise
+    except Exception as exc:
+        print(f"::error::{type(exc).__name__}: {exc}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

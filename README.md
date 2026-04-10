@@ -3,6 +3,8 @@
 # yamlwav - Configuration via .wav? Sounds good to me.
 
 [![YAML Compliance](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/CryptoFewka/yamlwav/main/compliance-badge.json)](https://github.com/CryptoFewka/yamlwav/actions/workflows/yaml-compliance.yml)
+[![Action Tests](https://github.com/CryptoFewka/yamlwav/actions/workflows/test-action.yml/badge.svg)](https://github.com/CryptoFewka/yamlwav/actions/workflows/test-action.yml)
+[![Python 3.9-3.14](https://img.shields.io/badge/python-3.9--3.14-blue)](https://pypi.org/project/yamlwav/)
 
 A totally serious, production-ready configuration format that stores your YAML settings as playable WAV audio files.
 
@@ -211,6 +213,12 @@ With all options:
 | `mask-values` | decode | `false` | Mask all decoded values in logs. |
 | `output` | decode | | File path for dotenv/json output. |
 | `python-version` | both | `3.x` | Python version. |
+
+### Version pinning
+
+- `@v1` -- recommended. Gets bug fixes and new features, no breaking changes.
+- `@v1.0.0` -- exact version pin for maximum reproducibility.
+- `@main` -- latest development. Not recommended for production.
 
 ## API
 
