@@ -13,7 +13,7 @@ from . import decode, encode
 
 def main():
     parser = argparse.ArgumentParser(
-        prog="python -m yamlwav",
+        prog="yamlwav",
         description="Encode YAML configs as WAV audio or decode them back.",
     )
     sub = parser.add_subparsers(dest="cmd")

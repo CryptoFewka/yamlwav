@@ -121,16 +121,16 @@ Output is deterministic — the same input always produces byte-identical WAV fi
 
 ```bash
 # Encode — output defaults to config.yaml.wav
-python -m yamlwav encode config.yaml
+yamlwav encode config.yaml
 
 # Encode with compression
-python -m yamlwav encode config.yaml --compress
+yamlwav encode config.yaml --compress
 
 # Specify output path explicitly
-python -m yamlwav encode config.yaml output.yaml.wav
+yamlwav encode config.yaml output.yaml.wav
 
 # Decode back to key: value pairs
-python -m yamlwav decode config.yaml.wav
+yamlwav decode config.yaml.wav
 ```
 
 ## API
