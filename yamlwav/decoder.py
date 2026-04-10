@@ -1,6 +1,8 @@
 """WAV → dict decoder."""
+import io
 import struct
 import wave
+import zipfile
 
 from .goertzel import SAMPLE_RATE, SAMPLES_PER_CHAR, detect_char
 
@@ -21,8 +23,18 @@ def _decode_channel(samples) -> str:
 
 
 def decode(wav_path: str) -> dict:
-    """Decode a yamlwav WAV file back to a dict of string key-value pairs."""
-    with wave.open(wav_path, "r") as wf:
+    """Decode a yamlwav WAV file back to a dict of string key-value pairs.
+
+    Accepts both raw WAV files and zip-compressed WAV files produced by the
+    encoder's default compress=True mode. The format is detected automatically.
+    """
+    if zipfile.is_zipfile(wav_path):
+        with zipfile.ZipFile(wav_path) as zf:
+            wav_bytes = zf.read(zf.namelist()[0])
+        source = io.BytesIO(wav_bytes)
+    else:
+        source = wav_path
+    with wave.open(source, "r") as wf:
         n_channels = wf.getnchannels()
         n_frames = wf.getnframes()
         sample_width = wf.getsampwidth()

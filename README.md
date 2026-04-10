@@ -35,13 +35,17 @@ No dependencies. Pure Python standard library. As it should be.
 from yamlwav import encode, decode, WavConfig
 
 # Convert your boring YAML config into rich, listenable audio
-encode("config.yaml", "config.wav")
+# Output defaults to <yaml_path>.wav — e.g. config.yaml → config.yaml.wav
+encode("config.yaml")
+
+# Or specify the output path explicitly
+encode("config.yaml", "config.yaml.wav")
 
 # Decode back to a plain dict (raw string values)
-data = decode("config.wav")
+data = decode("config.yaml.wav")
 
 # Or use the dict-like interface with automatic type coercion
-cfg = WavConfig("config.wav")
+cfg = WavConfig("config.yaml.wav")
 print(cfg["port"])    # 8080  (int, not "8080")
 print(cfg["debug"])   # True  (bool, not "true")
 ```
@@ -70,13 +74,45 @@ The resulting WAV file is 44100 Hz, 16-bit PCM and will play in any audio applic
 | `"3.14"` | `float` |
 | anything else | `str` |
 
+## Compression
+
+By default yamlwav writes a standard, playable WAV file. To reduce file size, pass
+`compress=True` — the output will be wrapped in a `zipfile.ZIP_DEFLATED` archive, typically
+shrinking the file by ~95% (e.g. 5.3 MB → 271 KB). The extension stays `.yaml.wav` either way;
+decoders auto-detect which format they received.
+
+```python
+# Default: raw PCM WAV — playable in any audio application
+encode("config.yaml")
+
+# Opt in to compression for smaller files
+encode("config.yaml", compress=True)
+encode_dict(data, "config.yaml.wav", compress=True)
+```
+
+## Command-line interface
+
+```bash
+# Encode — output defaults to config.yaml.wav
+python -m yamlwav encode config.yaml
+
+# Encode with compression
+python -m yamlwav encode config.yaml --compress
+
+# Specify output path explicitly
+python -m yamlwav encode config.yaml output.yaml.wav
+
+# Decode back to key: value pairs
+python -m yamlwav decode config.yaml.wav
+```
+
 ## API
 
 ```python
-encode(yaml_path, wav_path)          # YAML file → WAV file
-encode_dict(data_dict, wav_path)     # dict → WAV file
-decode(wav_path) -> dict             # WAV → dict[str, str]
-WavConfig(wav_path)                  # WAV → dict-like object with type coercion
+encode(yaml_path, wav_path=None, compress=False)  # YAML file → WAV file (default output: <yaml_path>.wav)
+encode_dict(data_dict, wav_path, compress=False)   # dict → WAV file
+decode(wav_path) -> dict                           # WAV → dict[str, str]  (auto-detects compression)
+WavConfig(wav_path)                                # WAV → dict-like object with type coercion
 ```
 
 ## Decoding without installing yamlwav
@@ -106,7 +142,7 @@ yamlwav is designed for non-sensitive runtime configuration: hostnames, ports, f
 
 - Only flat (non-nested) key-value pairs are supported. Nested config is a sign of moral weakness.
 - Decoding is O(N × 256) per character window and is implemented in pure Python. Performance scales linearly with the amount of config you have, which is a feature because it discourages large configs.
-- WAV files for typical configs are several megabytes. This is a small price to pay for audibility.
+- WAV files for typical configs are several megabytes. Pass `compress=True` to reduce this substantially, at the cost of the file no longer being directly playable as audio.
 
 ## FAQ
 

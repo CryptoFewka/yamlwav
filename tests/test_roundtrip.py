@@ -3,6 +3,7 @@ import os
 import string
 import sys
 import tempfile
+import zipfile
 
 import pytest
 
@@ -131,3 +132,72 @@ def test_determinism(tmp_path):
     encode_dict(data, wav2)
     with open(wav1, "rb") as f1, open(wav2, "rb") as f2:
         assert f1.read() == f2.read()
+
+
+def test_roundtrip_compress_default(tmp_path):
+    """Default encode produces a raw WAV file that decodes correctly."""
+    wav = str(tmp_path / "raw.wav")
+    data = {"host": "localhost", "port": "8080", "debug": "true"}
+    encode_dict(data, wav)
+
+    assert not zipfile.is_zipfile(wav), "Default output should be raw WAV"
+
+    result = decode(wav)
+    assert result["host"] == "localhost"
+    assert result["port"] == "8080"
+    assert result["debug"] == "true"
+
+
+def test_roundtrip_compress_true(tmp_path):
+    """compress=True produces a zip-compressed file that decodes correctly."""
+    wav = str(tmp_path / "compressed.wav")
+    data = {"host": "localhost", "port": "8080", "debug": "true"}
+    encode_dict(data, wav, compress=True)
+
+    assert zipfile.is_zipfile(wav), "compress=True output should be zip-compressed"
+
+    result = decode(wav)
+    assert result["host"] == "localhost"
+    assert result["port"] == "8080"
+    assert result["debug"] == "true"
+
+
+def test_compression_reduces_size(tmp_path):
+    """Compressed output is smaller than raw WAV output for the same config."""
+    compressed = str(tmp_path / "compressed.wav")
+    raw = str(tmp_path / "raw.wav")
+    data = {"host": "localhost", "port": "8080", "debug": "true", "workers": "4"}
+    encode_dict(data, compressed, compress=True)
+    encode_dict(data, raw, compress=False)
+
+    assert os.path.getsize(compressed) < os.path.getsize(raw)
+
+
+def test_default_output_path(tmp_path):
+    """encode() without wav_path writes to <yaml_path>.wav."""
+    yaml_path = str(tmp_path / "config.yaml")
+    with open(yaml_path, "w") as f:
+        f.write("host: localhost\nport: 8080\n")
+
+    encode(yaml_path)  # no wav_path given
+
+    expected = yaml_path + ".wav"
+    assert os.path.exists(expected), f"Expected output at {expected}"
+    result = decode(expected)
+    assert result["host"] == "localhost"
+    assert result["port"] == "8080"
+
+
+def test_standalone_decoder_handles_compressed(tmp_path):
+    """The standalone decoder transparently handles zip-compressed files."""
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+    from standalone_decoder import decode_yamlwav
+
+    wav = str(tmp_path / "compressed.wav")
+    data = {"service": "web", "port": "443", "tls": "true"}
+    encode_dict(data, wav, compress=True)
+
+    result = decode_yamlwav(wav)
+    assert result["service"] == "web"
+    assert result["port"] == "443"
+    assert result["tls"] == "true"

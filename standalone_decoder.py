@@ -1,8 +1,11 @@
 # yamlwav standalone decoder — copy-paste boilerplate
 #
 # Paste the `decode_yamlwav` function below into your own Python file.
-# It requires only the Python standard library (wave, struct, math).
+# It requires only the Python standard library (wave, struct, math, zipfile, io).
 # No pip install needed.
+#
+# Handles both raw WAV files and zip-compressed WAV files (the default output
+# format since compression was added). The format is detected automatically.
 #
 # Usage:
 #   config = decode_yamlwav("config.wav")
@@ -13,17 +16,20 @@ def decode_yamlwav(wav_path: str) -> dict:
     """Decode a yamlwav WAV file back to a dict of string key-value pairs.
 
     Requires only Python stdlib — safe to paste into any project without
-    adding a dependency.
+    adding a dependency. Handles both raw WAV and zip-compressed WAV output.
 
     Args:
-        wav_path: Path to a WAV file produced by yamlwav's encoder.
+        wav_path: Path to a file produced by yamlwav's encoder (compressed or
+            uncompressed).
 
     Returns:
         dict[str, str] mapping each config key to its string value.
     """
+    import io
     import math
     import struct
     import wave
+    import zipfile
 
     SAMPLE_RATE = 44100
     SAMPLES_PER_CHAR = 6615       # int(44100 * 0.15) — samples per character
@@ -63,7 +69,14 @@ def decode_yamlwav(wav_path: str) -> dict:
         # latin-1 so all 256 byte values survive the round-trip
         return result.decode("latin-1").rstrip("\x00")
 
-    with wave.open(wav_path, "r") as wf:
+    if zipfile.is_zipfile(wav_path):
+        with zipfile.ZipFile(wav_path) as zf:
+            wav_bytes = zf.read(zf.namelist()[0])
+        source = io.BytesIO(wav_bytes)
+    else:
+        source = wav_path
+
+    with wave.open(source, "r") as wf:
         n_channels = wf.getnchannels()
         n_frames = wf.getnframes()
         sample_width = wf.getsampwidth()
