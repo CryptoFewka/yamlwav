@@ -210,7 +210,7 @@ With all options:
 | `key-transform` | decode | `upper` | `upper` (`db.host` -> `DB_HOST`), `flat` (`db_host`), `preserve`. |
 | `mask-values` | decode | `false` | Mask all decoded values in logs. |
 | `output` | decode | | File path for dotenv/json output. |
-| `python-version` | both | `3.12` | Python version. |
+| `python-version` | both | `3.x` | Python version. |
 
 ## API
 

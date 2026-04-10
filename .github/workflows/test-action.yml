@@ -10,7 +10,7 @@ jobs:
     name: Encode basic
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Encode sample config
         id: yamlwav
@@ -38,7 +38,7 @@ jobs:
     name: Encode compressed
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: ./
         with:
@@ -68,7 +68,7 @@ jobs:
     name: Encode glob
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Create extra YAML files
         run: |
@@ -90,7 +90,7 @@ jobs:
     name: Encode with artifact upload
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: ./
         with:
@@ -102,7 +102,7 @@ jobs:
     name: Decode to JSON step output
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Encode first
         uses: ./
@@ -128,7 +128,7 @@ jobs:
     name: Decode to env vars
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Encode first
         uses: ./
@@ -153,7 +153,7 @@ jobs:
     name: Decode to .env file
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Encode first
         uses: ./
@@ -177,7 +177,7 @@ jobs:
     name: Decode to JSON file
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Encode first
         uses: ./
@@ -207,7 +207,7 @@ jobs:
     name: Decode with prefix
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Encode first
         uses: ./
@@ -230,7 +230,7 @@ jobs:
     name: Decode key transforms
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Encode first
         uses: ./
@@ -265,7 +265,7 @@ jobs:
     name: Full roundtrip
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Encode with compression
         uses: ./
@@ -306,9 +306,9 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python: ["3.9", "3.12", "3.13"]
+        python: ["3.9", "3.12", "3.13", "3.14"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Encode
         uses: ./
