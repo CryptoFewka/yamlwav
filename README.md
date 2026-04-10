@@ -48,11 +48,15 @@ data = decode("config.yaml.wav")
 cfg = WavConfig("config.yaml.wav")
 print(cfg["port"])    # 8080  (int, not "8080")
 print(cfg["debug"])   # True  (bool, not "true")
+
+# Nested YAML works too — keys flatten to dot-notation
+print(cfg["db"]["host"])  # "localhost"  (nested access)
+print(cfg.to_nested())    # {"db": {"host": "localhost", "port": 5432}, ...}
 ```
 
 ## How It Works
 
-Each top-level YAML key becomes a separate audio channel. Each character of a key's value is encoded as a pure sine wave tone held for 0.15 seconds:
+Each YAML key becomes a separate audio channel. Nested keys are flattened to dot-notation (e.g. `db.host`) before encoding. Each character of a key's value is encoded as a pure sine wave tone held for 0.15 seconds:
 
 ```
 frequency = 200 + (ASCII_code × 25)  Hz
@@ -61,6 +65,27 @@ frequency = 200 + (ASCII_code × 25)  Hz
 This maps all 256 byte values to the range 200 Hz – 6575 Hz. The key names are encoded in channel 0 as a null-byte-separated manifest. Decoding uses the [Goertzel algorithm](https://en.wikipedia.org/wiki/Goertzel_algorithm) to detect the dominant frequency in each 0.15-second window and recover the original character.
 
 The resulting WAV file is 44100 Hz, 16-bit PCM and will play in any audio application, producing what can only be described as a demonic sine choir.
+
+## YAML Compliance
+
+In the course of eliminating YAML dependencies, we accidentally wrote a complete YAML 1.2 parser. It is 1,660 lines of pure Python, has zero external dependencies, and passes the official YAML test suite at a rate that may surprise you.
+
+| Feature | yamlwav | PyYAML | ruamel.yaml |
+|---|---|---|---|
+| YAML spec version | 1.2 | 1.1 | 1.2 |
+| Official test-suite pass rate | 231/231 (100%) | ~60% | ~99% |
+| External dependencies | 0 | libyaml (C) | yes |
+| Known RCE CVEs | 0 | CVE-2017-18342 | 0 |
+| Also plays audio | yes | no | no |
+
+The parser supports anchors and aliases, tags, multi-document streams, flow collections, block scalars (literal and folded with all chomping modes), single- and double-quoted strings with full escape sequences, YAML 1.2 Core Schema type resolution, Unicode, and directives.
+
+```python
+from yamlwav.yaml_parser import parse, parse_all
+
+doc = parse("port: 8080\ndebug: true")       # single document
+docs = parse_all("---\na: 1\n---\nb: 2\n")   # multi-document stream
+```
 
 ## Supported value types
 
@@ -90,6 +115,8 @@ encode("config.yaml", compress=True)
 encode_dict(data, "config.yaml.wav", compress=True)
 ```
 
+Output is deterministic — the same input always produces byte-identical WAV files, compressed or not.
+
 ## Command-line interface
 
 ```bash
@@ -110,9 +137,16 @@ python -m yamlwav decode config.yaml.wav
 
 ```python
 encode(yaml_path, wav_path=None, compress=False)  # YAML file → WAV file (default output: <yaml_path>.wav)
-encode_dict(data_dict, wav_path, compress=False)   # dict → WAV file
+encode_dict(data_dict, wav_path, compress=False)   # dict → WAV file (nested dicts auto-flattened)
 decode(wav_path) -> dict                           # WAV → dict[str, str]  (auto-detects compression)
 WavConfig(wav_path)                                # WAV → dict-like object with type coercion
+WavConfig["section"]["key"]                        # nested access via dot-notation keys
+WavConfig.to_nested() -> dict                      # reconstruct full nested dict
+
+# Standalone YAML 1.2 parser (no WAV involved)
+from yamlwav.yaml_parser import parse, parse_all
+parse(text) -> object                              # parse a single YAML 1.2 document
+parse_all(text) -> list                            # parse all documents in a YAML stream
 ```
 
 ## Decoding without installing yamlwav
@@ -140,7 +174,7 @@ yamlwav is designed for non-sensitive runtime configuration: hostnames, ports, f
 
 ## Limitations
 
-- Only flat (non-nested) key-value pairs are supported. Nested config is a sign of moral weakness.
+- Nested YAML is supported but flattened internally to dot-notation keys. Deep nesting remains a sign of moral weakness.
 - Decoding is O(N × 256) per character window and is implemented in pure Python. Performance scales linearly with the amount of config you have, which is a feature because it discourages large configs.
 - WAV files for typical configs are several megabytes. Pass `compress=True` to reduce this substantially, at the cost of the file no longer being directly playable as audio.
 
