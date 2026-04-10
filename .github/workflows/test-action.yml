@@ -26,7 +26,6 @@ jobs:
 
       - name: Verify roundtrip
         run: |
-          pip install -e .
           python -c "
           from yamlwav import decode
           d = decode('examples/sample_config.yaml.wav')
@@ -58,7 +57,6 @@ jobs:
 
       - name: Verify compressed roundtrip
         run: |
-          pip install -e .
           python -c "
           from yamlwav import decode
           d = decode('output/sample_config.yaml.wav')
@@ -100,8 +98,8 @@ jobs:
           upload-artifact: "true"
           artifact-name: test-wav-upload
 
-  test-decode-outputs:
-    name: Decode to step outputs
+  test-decode-json-output:
+    name: Decode to JSON step output
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -111,20 +109,20 @@ jobs:
         with:
           files: examples/sample_config.yaml
 
-      - name: Decode to outputs
+      - name: Decode
         id: cfg
         uses: ./
         with:
           file: examples/sample_config.yaml.wav
 
-      - name: Verify step outputs
+      - name: Verify JSON output
         run: |
-          echo "HOST=${{ steps.cfg.outputs.HOST }}"
-          echo "PORT=${{ steps.cfg.outputs.PORT }}"
-          echo "DEBUG=${{ steps.cfg.outputs.DEBUG }}"
-          test "${{ steps.cfg.outputs.HOST }}" = "localhost"
-          test "${{ steps.cfg.outputs.PORT }}" = "8080"
-          test "${{ steps.cfg.outputs.DEBUG }}" = "true"
+          echo "HOST=${{ fromJSON(steps.cfg.outputs.json).HOST }}"
+          echo "PORT=${{ fromJSON(steps.cfg.outputs.json).PORT }}"
+          echo "DEBUG=${{ fromJSON(steps.cfg.outputs.json).DEBUG }}"
+          test "${{ fromJSON(steps.cfg.outputs.json).HOST }}" = "localhost"
+          test "${{ fromJSON(steps.cfg.outputs.json).PORT }}" = "8080"
+          test "${{ fromJSON(steps.cfg.outputs.json).DEBUG }}" = "true"
 
   test-decode-env:
     name: Decode to env vars
@@ -175,8 +173,8 @@ jobs:
           grep -q "HOST=localhost" config.env
           grep -q "PORT=8080" config.env
 
-  test-decode-json:
-    name: Decode to JSON
+  test-decode-json-file:
+    name: Decode to JSON file
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -225,8 +223,8 @@ jobs:
 
       - name: Verify prefixed outputs
         run: |
-          test "${{ steps.cfg.outputs.CFG_HOST }}" = "localhost"
-          test "${{ steps.cfg.outputs.CFG_PORT }}" = "8080"
+          test "${{ fromJSON(steps.cfg.outputs.json).CFG_HOST }}" = "localhost"
+          test "${{ fromJSON(steps.cfg.outputs.json).CFG_PORT }}" = "8080"
 
   test-decode-transform:
     name: Decode key transforms
@@ -248,8 +246,8 @@ jobs:
 
       - name: Verify flat keys
         run: |
-          test "${{ steps.flat.outputs.host }}" = "localhost"
-          test "${{ steps.flat.outputs.port }}" = "8080"
+          test "${{ fromJSON(steps.flat.outputs.json).host }}" = "localhost"
+          test "${{ fromJSON(steps.flat.outputs.json).port }}" = "8080"
 
       - name: Decode with preserve transform
         id: preserve
@@ -260,8 +258,8 @@ jobs:
 
       - name: Verify preserved keys
         run: |
-          test "${{ steps.preserve.outputs.host }}" = "localhost"
-          test "${{ steps.preserve.outputs.port }}" = "8080"
+          test "${{ fromJSON(steps.preserve.outputs.json).host }}" = "localhost"
+          test "${{ fromJSON(steps.preserve.outputs.json).port }}" = "8080"
 
   test-roundtrip:
     name: Full roundtrip
@@ -280,12 +278,12 @@ jobs:
         uses: ./
         with:
           file: examples/sample_config.yaml.wav
-          format: outputs,env,dotenv,json
+          format: env,dotenv,json
 
       - name: Verify all formats
         run: |
-          # Step outputs
-          test "${{ steps.cfg.outputs.HOST }}" = "localhost"
+          # JSON step output (always available)
+          test "${{ fromJSON(steps.cfg.outputs.json).HOST }}" = "localhost"
 
           # Env vars
           test "$HOST" = "localhost"
@@ -326,4 +324,4 @@ jobs:
           python-version: ${{ matrix.python }}
 
       - name: Verify
-        run: test "${{ steps.cfg.outputs.HOST }}" = "localhost"
+        run: test "${{ fromJSON(steps.cfg.outputs.json).HOST }}" = "localhost"

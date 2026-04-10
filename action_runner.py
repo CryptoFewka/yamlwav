@@ -103,7 +103,7 @@ def decode_mode() -> None:
     file_input = os.environ.get("INPUT_FILE", "").strip()
     formats = [
         f.strip()
-        for f in os.environ.get("INPUT_FORMAT", "outputs").split(",")
+        for f in os.environ.get("INPUT_FORMAT", "").split(",")
         if f.strip()
     ]
     prefix = os.environ.get("INPUT_PREFIX", "")
@@ -141,6 +141,9 @@ def decode_mode() -> None:
         if mask_all:
             print(f"::add-mask::{value}")
 
+    # Always output JSON as a step output for fromJSON() access
+    _github_output("json", json.dumps(transformed))
+
     # Determine which formats write files so we can handle the output path.
     # If only one file format is requested, output_path applies to it.
     # If multiple file formats are requested, use defaults for each.
@@ -149,12 +152,7 @@ def decode_mode() -> None:
 
     # Write outputs in each requested format
     for fmt in formats:
-        if fmt == "outputs":
-            for key, value in transformed.items():
-                _github_output(key, value)
-            print(f"Wrote {len(transformed)} step output(s)")
-
-        elif fmt == "env":
+        if fmt == "env":
             for key, value in transformed.items():
                 _github_env(key, value)
             print(f"Wrote {len(transformed)} environment variable(s)")

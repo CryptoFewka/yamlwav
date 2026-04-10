@@ -168,7 +168,8 @@ With all options:
   with:
     file: config.yaml.wav
 
-- run: echo "Host is ${{ steps.cfg.outputs.HOST }}"
+# All decoded values are available via fromJSON()
+- run: echo "Host is ${{ fromJSON(steps.cfg.outputs.json).HOST }}"
 ```
 
 ### Decode WAV to environment variables
@@ -204,12 +205,12 @@ With all options:
 | `output-dir` | encode | | Directory for WAV output. |
 | `upload-artifact` | encode | `false` | Upload WAV files as GitHub Actions artifacts. |
 | `artifact-name` | encode | `yamlwav-files` | Name for the uploaded artifact. |
-| `format` | decode | `outputs` | Comma-separated: `outputs`, `env`, `dotenv`, `json`. |
+| `format` | decode | | Comma-separated: `env`, `dotenv`, `json`. All values always available via `json` output. |
 | `prefix` | decode | | Prefix for output keys (e.g. `APP_`). |
 | `key-transform` | decode | `upper` | `upper` (`db.host` -> `DB_HOST`), `flat` (`db_host`), `preserve`. |
 | `mask-values` | decode | `false` | Mask all decoded values in logs. |
 | `output` | decode | | File path for dotenv/json output. |
-| `python-version` | both | `3.x` | Python version. |
+| `python-version` | both | `3.12` | Python version. |
 
 ## API
 

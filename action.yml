@@ -50,13 +50,14 @@ inputs:
 
   format:
     description: >
-      (decode) Comma-separated output formats: outputs, env, dotenv, json.
-      - outputs: set as step outputs (use steps.<id>.outputs.<KEY>)
+      (decode) Comma-separated output formats: env, dotenv, json.
       - env: write to GITHUB_ENV for subsequent steps
       - dotenv: write a .env file
       - json: write a JSON file
+      All decoded values are always available via the 'json' output
+      (use fromJSON(steps.<id>.outputs.json).KEY to access individual values).
     required: false
-    default: "outputs"
+    default: ""
 
   prefix:
     description: '(decode) Prefix for output keys. Example: "APP_" makes db.host → APP_DB_HOST'
@@ -85,7 +86,7 @@ inputs:
   python-version:
     description: "Python version to use."
     required: false
-    default: "3.x"
+    default: "3.12"
 
 outputs:
   files:
@@ -99,6 +100,10 @@ outputs:
   artifact-id:
     description: "(encode) Artifact ID if upload-artifact was enabled."
     value: ${{ steps.upload.outputs.artifact-id }}
+
+  json:
+    description: "(decode) All decoded key-value pairs as a JSON string. Use fromJSON() to access individual values."
+    value: ${{ steps.run.outputs.json }}
 
 runs:
   using: "composite"
