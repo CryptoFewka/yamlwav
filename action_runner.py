@@ -185,24 +185,12 @@ def decode_mode() -> None:
             print(f"::warning::Unknown format '{fmt}', skipping")
 
 
-def detect_mode() -> str:
-    """Auto-detect mode from inputs."""
-    explicit = os.environ.get("INPUT_MODE", "").strip().lower()
-    if explicit in ("encode", "decode"):
-        return explicit
-
-    if os.environ.get("INPUT_FILES", "").strip():
-        return "encode"
-    if os.environ.get("INPUT_FILE", "").strip():
-        return "decode"
-
-    print("::error::Cannot detect mode. Set 'mode', 'files' (encode), or 'file' (decode).")
-    sys.exit(1)
-
-
 def main() -> None:
     try:
-        mode = detect_mode()
+        mode = os.environ.get("INPUT_MODE", "").strip().lower()
+        if mode not in ("encode", "decode"):
+            print(f"::error::Invalid mode '{mode}'. Set mode to 'encode' or 'decode'.")
+            sys.exit(1)
         print(f"Mode: {mode}")
 
         if mode == "encode":

@@ -144,6 +144,7 @@ yamlwav is available as a GitHub Action for encoding YAML files to WAV and decod
 ```yaml
 - uses: CryptoFewka/yamlwav@v1
   with:
+    mode: encode
     files: config.yaml
 ```
 
@@ -152,6 +153,7 @@ With all options:
 ```yaml
 - uses: CryptoFewka/yamlwav@v1
   with:
+    mode: encode
     files: |
       configs/**/*.yaml
       settings/*.yml
@@ -168,6 +170,7 @@ With all options:
   id: cfg
   uses: CryptoFewka/yamlwav@v1
   with:
+    mode: decode
     file: config.yaml.wav
 
 # All decoded values are available via fromJSON()
@@ -179,6 +182,7 @@ With all options:
 ```yaml
 - uses: CryptoFewka/yamlwav@v1
   with:
+    mode: decode
     file: config.yaml.wav
     format: env
     prefix: APP_
@@ -191,6 +195,7 @@ With all options:
 ```yaml
 - uses: CryptoFewka/yamlwav@v1
   with:
+    mode: decode
     file: config.yaml.wav
     format: dotenv
     output: .env
@@ -200,7 +205,7 @@ With all options:
 
 | Input | Mode | Default | Description |
 |---|---|---|---|
-| `mode` | both | auto | `encode` or `decode`. Auto-detected from `files`/`file` if omitted. |
+| `mode` | both | *required* | `encode` or `decode`. |
 | `files` | encode | | YAML files or glob patterns (newline-separated). |
 | `file` | decode | | Single `.yaml.wav` file to decode. |
 | `compress` | encode | `false` | Zip compression (~95% size reduction). |

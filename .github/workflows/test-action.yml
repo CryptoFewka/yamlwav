@@ -16,6 +16,7 @@ jobs:
         id: yamlwav
         uses: ./
         with:
+          mode: encode
           files: examples/sample_config.yaml
 
       - name: Verify output exists
@@ -42,6 +43,7 @@ jobs:
 
       - uses: ./
         with:
+          mode: encode
           files: examples/sample_config.yaml
           compress: "true"
           output-dir: output
@@ -78,6 +80,7 @@ jobs:
       - uses: ./
         id: yamlwav
         with:
+          mode: encode
           files: examples/*.yaml
 
       - name: Verify multiple files encoded
@@ -94,6 +97,7 @@ jobs:
 
       - uses: ./
         with:
+          mode: encode
           files: examples/sample_config.yaml
           upload-artifact: "true"
           artifact-name: test-wav-upload
@@ -107,12 +111,14 @@ jobs:
       - name: Encode first
         uses: ./
         with:
+          mode: encode
           files: examples/sample_config.yaml
 
       - name: Decode
         id: cfg
         uses: ./
         with:
+          mode: decode
           file: examples/sample_config.yaml.wav
 
       - name: Verify JSON output
@@ -133,11 +139,13 @@ jobs:
       - name: Encode first
         uses: ./
         with:
+          mode: encode
           files: examples/sample_config.yaml
 
       - name: Decode to env
         uses: ./
         with:
+          mode: decode
           file: examples/sample_config.yaml.wav
           format: env
           prefix: APP_
@@ -158,11 +166,13 @@ jobs:
       - name: Encode first
         uses: ./
         with:
+          mode: encode
           files: examples/sample_config.yaml
 
       - name: Decode to .env
         uses: ./
         with:
+          mode: decode
           file: examples/sample_config.yaml.wav
           format: dotenv
           output: config.env
@@ -182,11 +192,13 @@ jobs:
       - name: Encode first
         uses: ./
         with:
+          mode: encode
           files: examples/sample_config.yaml
 
       - name: Decode to JSON
         uses: ./
         with:
+          mode: decode
           file: examples/sample_config.yaml.wav
           format: json
           output: config.json
@@ -212,12 +224,14 @@ jobs:
       - name: Encode first
         uses: ./
         with:
+          mode: encode
           files: examples/sample_config.yaml
 
       - name: Decode with prefix
         id: cfg
         uses: ./
         with:
+          mode: decode
           file: examples/sample_config.yaml.wav
           prefix: CFG_
 
@@ -235,12 +249,14 @@ jobs:
       - name: Encode first
         uses: ./
         with:
+          mode: encode
           files: examples/sample_config.yaml
 
       - name: Decode with flat transform
         id: flat
         uses: ./
         with:
+          mode: decode
           file: examples/sample_config.yaml.wav
           key-transform: flat
 
@@ -253,6 +269,7 @@ jobs:
         id: preserve
         uses: ./
         with:
+          mode: decode
           file: examples/sample_config.yaml.wav
           key-transform: preserve
 
@@ -270,6 +287,7 @@ jobs:
       - name: Encode with compression
         uses: ./
         with:
+          mode: encode
           files: examples/sample_config.yaml
           compress: "true"
 
@@ -277,6 +295,7 @@ jobs:
         id: cfg
         uses: ./
         with:
+          mode: decode
           file: examples/sample_config.yaml.wav
           format: env,dotenv,json
 
@@ -313,6 +332,7 @@ jobs:
       - name: Encode
         uses: ./
         with:
+          mode: encode
           files: examples/sample_config.yaml
           python-version: ${{ matrix.python }}
 
@@ -320,6 +340,7 @@ jobs:
         id: cfg
         uses: ./
         with:
+          mode: decode
           file: examples/sample_config.yaml.wav
           python-version: ${{ matrix.python }}
 
