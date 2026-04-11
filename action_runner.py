@@ -38,13 +38,16 @@ def _github_env(key: str, value: str) -> None:
             f.write(f"{key}={value}\n")
 
 
+_VALID_TRANSFORMS = ("upper", "flat", "preserve")
+
+
 def _transform_key(key: str, mode: str, prefix: str) -> str:
     """Transform a dot-notation key based on the chosen mode and prefix."""
     if mode == "upper":
         transformed = key.replace(".", "_").replace("-", "_").upper()
     elif mode == "flat":
         transformed = key.replace(".", "_").replace("-", "_")
-    else:  # preserve
+    else:  # preserve (validated in decode_mode)
         transformed = key
     return prefix + transformed
 
@@ -119,6 +122,13 @@ def decode_mode() -> None:
         print(f"::error::File not found: {file_input}")
         sys.exit(1)
 
+    if key_transform not in _VALID_TRANSFORMS:
+        print(
+            f"::warning::Unknown key-transform '{key_transform}', "
+            f"falling back to 'upper'"
+        )
+        key_transform = "upper"
+
     data = decode(file_input)
     print(f"Decoded {len(data)} key(s) from {file_input}")
 
@@ -175,29 +185,23 @@ def decode_mode() -> None:
             print(f"::warning::Unknown format '{fmt}', skipping")
 
 
-def detect_mode() -> str:
-    """Auto-detect mode from inputs."""
-    explicit = os.environ.get("INPUT_MODE", "").strip().lower()
-    if explicit in ("encode", "decode"):
-        return explicit
-
-    if os.environ.get("INPUT_FILES", "").strip():
-        return "encode"
-    if os.environ.get("INPUT_FILE", "").strip():
-        return "decode"
-
-    print("::error::Cannot detect mode. Set 'mode', 'files' (encode), or 'file' (decode).")
-    sys.exit(1)
-
-
 def main() -> None:
-    mode = detect_mode()
-    print(f"Mode: {mode}")
+    try:
+        mode = os.environ.get("INPUT_MODE", "").strip().lower()
+        if mode not in ("encode", "decode"):
+            print(f"::error::Invalid mode '{mode}'. Set mode to 'encode' or 'decode'.")
+            sys.exit(1)
+        print(f"Mode: {mode}")
 
-    if mode == "encode":
-        encode_mode()
-    else:
-        decode_mode()
+        if mode == "encode":
+            encode_mode()
+        else:
+            decode_mode()
+    except SystemExit:
+        raise
+    except Exception as exc:
+        print(f"::error::{type(exc).__name__}: {exc}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

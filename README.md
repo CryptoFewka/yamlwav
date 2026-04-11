@@ -3,6 +3,8 @@
 # yamlwav - Configuration via .wav? Sounds good to me.
 
 [![YAML Compliance](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/CryptoFewka/yamlwav/main/compliance-badge.json)](https://github.com/CryptoFewka/yamlwav/actions/workflows/yaml-compliance.yml)
+[![Action Tests](https://github.com/CryptoFewka/yamlwav/actions/workflows/test-action.yml/badge.svg)](https://github.com/CryptoFewka/yamlwav/actions/workflows/test-action.yml)
+[![Python 3.9-3.14](https://img.shields.io/badge/python-3.9--3.14-blue)](https://pypi.org/project/yamlwav/)
 
 A totally serious, production-ready configuration format that stores your YAML settings as playable WAV audio files.
 
@@ -142,6 +144,7 @@ yamlwav is available as a GitHub Action for encoding YAML files to WAV and decod
 ```yaml
 - uses: CryptoFewka/yamlwav@v1
   with:
+    mode: encode
     files: config.yaml
 ```
 
@@ -150,6 +153,7 @@ With all options:
 ```yaml
 - uses: CryptoFewka/yamlwav@v1
   with:
+    mode: encode
     files: |
       configs/**/*.yaml
       settings/*.yml
@@ -166,6 +170,7 @@ With all options:
   id: cfg
   uses: CryptoFewka/yamlwav@v1
   with:
+    mode: decode
     file: config.yaml.wav
 
 # All decoded values are available via fromJSON()
@@ -177,6 +182,7 @@ With all options:
 ```yaml
 - uses: CryptoFewka/yamlwav@v1
   with:
+    mode: decode
     file: config.yaml.wav
     format: env
     prefix: APP_
@@ -189,6 +195,7 @@ With all options:
 ```yaml
 - uses: CryptoFewka/yamlwav@v1
   with:
+    mode: decode
     file: config.yaml.wav
     format: dotenv
     output: .env
@@ -198,7 +205,7 @@ With all options:
 
 | Input | Mode | Default | Description |
 |---|---|---|---|
-| `mode` | both | auto | `encode` or `decode`. Auto-detected from `files`/`file` if omitted. |
+| `mode` | both | *required* | `encode` or `decode`. |
 | `files` | encode | | YAML files or glob patterns (newline-separated). |
 | `file` | decode | | Single `.yaml.wav` file to decode. |
 | `compress` | encode | `false` | Zip compression (~95% size reduction). |
@@ -211,6 +218,12 @@ With all options:
 | `mask-values` | decode | `false` | Mask all decoded values in logs. |
 | `output` | decode | | File path for dotenv/json output. |
 | `python-version` | both | `3.x` | Python version. |
+
+### Version pinning
+
+- `@v1` -- recommended. Gets bug fixes and new features, no breaking changes.
+- `@v1.0.0` -- exact version pin for maximum reproducibility.
+- `@main` -- latest development. Not recommended for production.
 
 ## API
 

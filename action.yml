@@ -8,11 +8,8 @@ branding:
 
 inputs:
   mode:
-    description: >
-      Operation mode: encode or decode.
-      Auto-detected from inputs if omitted (files → encode, file → decode).
-    required: false
-    default: ""
+    description: "Operation mode: encode or decode."
+    required: true
 
   files:
     description: >
