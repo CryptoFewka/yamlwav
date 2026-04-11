@@ -1,5 +1,5 @@
 name: "yamlwav - YAML to WAV Audio"
-description: "Encode YAML configs as playable WAV audio, or decode WAV back to .env, step outputs, env vars, or JSON"
+description: "Encode YAML configs as playable WAV audio, or decode WAV back to step outputs, env vars, or JSON"
 author: "Sarcasm Heavy Industries LLC"
 
 branding:
