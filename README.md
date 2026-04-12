@@ -80,7 +80,7 @@ debug: true
 
 sounds like this (unmute to listen):
 
-https://github.com/CryptoFewka/yamlwav/raw/refs/heads/main/examples/demo.mp4
+https://github.com/CryptoFewka/yamlwav/raw/refs/heads/docs/demo-audio/examples/demo.mp4
 
 ## YAML Compliance
 
