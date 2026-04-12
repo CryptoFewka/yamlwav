@@ -1,4 +1,4 @@
-![yamlwav social preview](https://raw.githubusercontent.com/CryptoFewka/yamlwav/main/social_preview.png)
+<video src="https://github.com/user-attachments/assets/c6adb6a8-980a-4780-afb9-32a77de38dec" controls="controls" style="max-width: 730px;"></video>
 
 # yamlwav - Configuration via .wav? Sounds good to me.
 
@@ -67,6 +67,18 @@ frequency = 200 + (ASCII_code × 25)  Hz
 This maps all 256 byte values to the range 200 Hz – 6575 Hz. The key names are encoded in channel 0 as a null-byte-separated manifest. Decoding uses the [Goertzel algorithm](https://en.wikipedia.org/wiki/Goertzel_algorithm) to detect the dominant frequency in each 0.15-second window and recover the original character.
 
 The resulting WAV file is 44100 Hz, 16-bit PCM and will play in any audio application, producing what can only be described as a demonic sine choir.
+
+### Hear it yourself
+
+This config:
+
+```yaml
+host: localhost
+port: 8080
+debug: true
+```
+
+is what you hear when you unmute and play the video at the top of this README.
 
 ## YAML Compliance
 
