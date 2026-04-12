@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-04-11
+
+### Changed
+- **Breaking**: Encoding format switched from N-channel to stereo (2-channel) WAV for universal audio player compatibility
+- Data throughput doubled — two characters encoded per 0.15s window (one per stereo channel) instead of one, halving WAV file size and duration
+
+### Added
+- Backward-compatible decoding of v1 (N-channel) WAV files — the decoder auto-detects the format
+
 ## [1.0.1] - 2026-04-11
 
 ### Added

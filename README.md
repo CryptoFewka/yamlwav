@@ -1,4 +1,4 @@
-<video src="https://github.com/user-attachments/assets/c6adb6a8-980a-4780-afb9-32a77de38dec" controls="controls" style="max-width: 730px;"></video>
+<video src="https://github.com/user-attachments/assets/9e1e55b8-8c2f-4ce3-9c03-7c96df642602" controls="controls" style="max-width: 730px;"></video>
 
 # yamlwav - Configuration via .wav? Sounds good to me.
 
@@ -58,15 +58,15 @@ print(cfg.to_nested())    # {"db": {"host": "localhost", "port": 5432}, ...}
 
 ## How It Works
 
-Each YAML key becomes a separate audio channel. Nested keys are flattened to dot-notation (e.g. `db.host`) before encoding. Each character of a key's value is encoded as a pure sine wave tone held for 0.15 seconds:
+All key-value pairs are serialized into a single stream and split across two stereo channels — the left channel carries even-indexed characters and the right channel carries odd-indexed characters. This encodes two characters simultaneously (one per ear), doubling throughput compared to mono. Each character is a pure sine wave tone held for 0.15 seconds:
 
 ```
 frequency = 200 + (ASCII_code × 25)  Hz
 ```
 
-This maps all 256 byte values to the range 200 Hz – 6575 Hz. The key names are encoded in channel 0 as a null-byte-separated manifest. Decoding uses the [Goertzel algorithm](https://en.wikipedia.org/wiki/Goertzel_algorithm) to detect the dominant frequency in each 0.15-second window and recover the original character.
+This maps all 256 byte values to the range 200 Hz – 6575 Hz. Decoding uses the [Goertzel algorithm](https://en.wikipedia.org/wiki/Goertzel_algorithm) to detect the dominant frequency in each 0.15-second window and recover the original character. The decoder also reads legacy v1 (multi-channel) WAV files automatically.
 
-The resulting WAV file is 44100 Hz, 16-bit PCM and will play in any audio application, producing what can only be described as a demonic sine choir.
+The resulting WAV file is 44100 Hz, 16-bit stereo PCM and will play in any audio application, producing what can only be described as a demonic sine choir.
 
 ### Hear it yourself
 
@@ -154,7 +154,7 @@ yamlwav is available as a GitHub Action for encoding YAML files to WAV and decod
 ### Encode YAML to WAV
 
 ```yaml
-- uses: CryptoFewka/yamlwav@v1
+- uses: CryptoFewka/yamlwav@v2
   with:
     mode: encode
     files: config.yaml
@@ -163,7 +163,7 @@ yamlwav is available as a GitHub Action for encoding YAML files to WAV and decod
 With all options:
 
 ```yaml
-- uses: CryptoFewka/yamlwav@v1
+- uses: CryptoFewka/yamlwav@v2
   with:
     mode: encode
     files: |
@@ -180,7 +180,7 @@ With all options:
 ```yaml
 - name: Decode config
   id: cfg
-  uses: CryptoFewka/yamlwav@v1
+  uses: CryptoFewka/yamlwav@v2
   with:
     mode: decode
     file: config.yaml.wav
@@ -192,7 +192,7 @@ With all options:
 ### Decode WAV to environment variables
 
 ```yaml
-- uses: CryptoFewka/yamlwav@v1
+- uses: CryptoFewka/yamlwav@v2
   with:
     mode: decode
     file: config.yaml.wav
@@ -205,7 +205,7 @@ With all options:
 ### Decode WAV to .env or JSON file
 
 ```yaml
-- uses: CryptoFewka/yamlwav@v1
+- uses: CryptoFewka/yamlwav@v2
   with:
     mode: decode
     file: config.yaml.wav
@@ -233,8 +233,8 @@ With all options:
 
 ### Version pinning
 
-- `@v1` -- recommended. Gets bug fixes and new features, no breaking changes.
-- `@v1.0.0` -- exact version pin for maximum reproducibility.
+- `@v2` -- recommended. Gets bug fixes and new features, no breaking changes.
+- `@v2.0.0` -- exact version pin for maximum reproducibility.
 - `@main` -- latest development. Not recommended for production.
 
 ## API

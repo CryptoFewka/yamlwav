@@ -1,8 +1,12 @@
 """Roundtrip tests for yamlwav encode/decode."""
+import io
+import math
 import os
 import string
+import struct
 import sys
 import tempfile
+import wave
 import zipfile
 
 import pytest
@@ -201,3 +205,76 @@ def test_standalone_decoder_handles_compressed(tmp_path):
     assert result["service"] == "web"
     assert result["port"] == "443"
     assert result["tls"] == "true"
+
+
+def test_stereo_channel_count(tmp_path):
+    """v2 encoder always produces exactly 2-channel (stereo) WAV files."""
+    wav = str(tmp_path / "stereo.wav")
+    encode_dict({"a": "1", "b": "2", "c": "3"}, wav)
+    with wave.open(wav, "r") as wf:
+        assert wf.getnchannels() == 2
+
+
+def test_v1_backward_compat(tmp_path):
+    """Decoder can still read v1 N-channel WAV files."""
+    from yamlwav.goertzel import AMPLITUDE, SAMPLE_RATE, SAMPLES_PER_CHAR, char_to_freq
+
+    # Generate a v1 WAV file using the old N-channel encoding inline.
+    data = {"host": "localhost", "port": "8080"}
+    keys = list(data.keys())
+    manifest = "\x00".join(keys)
+
+    def encode_string(s):
+        samples = []
+        for ch in s:
+            freq = char_to_freq(ord(ch))
+            for i in range(SAMPLES_PER_CHAR):
+                t = i / SAMPLE_RATE
+                samples.append(int(AMPLITUDE * math.sin(2.0 * math.pi * freq * t)))
+        return samples
+
+    channels = [encode_string(manifest)]
+    for key in keys:
+        channels.append(encode_string(data[key]))
+
+    max_len = max(len(ch) for ch in channels)
+    padded = [ch + [0] * (max_len - len(ch)) for ch in channels]
+    n_channels = len(padded)
+    interleaved = bytearray()
+    for frame_idx in range(max_len):
+        for ch in padded:
+            sample = max(-32768, min(32767, ch[frame_idx]))
+            interleaved += struct.pack("<h", sample)
+
+    wav = str(tmp_path / "v1.wav")
+    buf = io.BytesIO()
+    with wave.open(buf, "w") as wf:
+        wf.setnchannels(n_channels)
+        wf.setsampwidth(2)
+        wf.setframerate(SAMPLE_RATE)
+        wf.writeframes(bytes(interleaved))
+    with open(wav, "wb") as f:
+        f.write(buf.getvalue())
+
+    result = decode(wav)
+    assert result["host"] == "localhost"
+    assert result["port"] == "8080"
+
+
+def test_odd_length_stream(tmp_path):
+    """Config whose serialized stream has odd length roundtrips correctly."""
+    wav = str(tmp_path / "odd.wav")
+    # Pick values that produce an odd total serialized length.
+    data = {"x": "ab"}
+    encode_dict(data, wav)
+    result = decode(wav)
+    assert result["x"] == "ab"
+
+
+def test_single_key(tmp_path):
+    """Single key-value pair roundtrips correctly."""
+    wav = str(tmp_path / "single.wav")
+    data = {"only": "one"}
+    encode_dict(data, wav)
+    result = decode(wav)
+    assert result["only"] == "one"

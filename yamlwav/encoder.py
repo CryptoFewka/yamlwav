@@ -103,11 +103,29 @@ def _write_output(wav_bytes: bytes, wav_path: str, compress: bool) -> None:
             fh.write(wav_bytes)
 
 
-def encode(yaml_path: str, wav_path: str = None, compress: bool = False) -> None:
-    """Encode a flat YAML config file as a multi-channel WAV audio file.
+def _serialize_config(keys: list, values: list) -> str:
+    """Serialize key-value pairs into a v2 delimited stream.
 
-    Channel 0 holds the key manifest (key names separated by null bytes).
-    Channels 1..N each hold one config value, in the same order as the manifest.
+    Format: \\x02 + key1\\x00value1\\x01key2\\x00value2\\x01...
+    \\x02 prefix marks v2 format. \\x00 separates key from value within a pair.
+    \\x01 separates pairs from each other.
+    """
+    pairs = [f"{k}\x00{v}" for k, v in zip(keys, values)]
+    return "\x02" + "\x01".join(pairs)
+
+
+def _stereo_channels(stream: str) -> list:
+    """Split a serialized stream into left/right stereo channels."""
+    left = stream[0::2]
+    right = stream[1::2]
+    return [_encode_string(left), _encode_string(right)]
+
+
+def encode(yaml_path: str, wav_path: str = None, compress: bool = False) -> None:
+    """Encode a YAML config file as a stereo WAV audio file.
+
+    Data is serialized into a single stream and split across left and right
+    channels, encoding two characters simultaneously for doubled throughput.
 
     If wav_path is not given, the output path is yaml_path + ".wav" (e.g.
     "config.yaml" → "config.yaml.wav").
@@ -120,18 +138,17 @@ def encode(yaml_path: str, wav_path: str = None, compress: bool = False) -> None
         wav_path = yaml_path + ".wav"
     config = _parse_yaml(yaml_path)
     keys = list(config.keys())
+    values = [config[k] for k in keys]
 
-    manifest = "\x00".join(keys)
-    channels = [_encode_string(manifest)]
-    for key in keys:
-        channels.append(_encode_string(config[key]))
+    stream = _serialize_config(keys, values)
+    channels = _stereo_channels(stream)
 
     _write_output(_build_wav_bytes(channels), wav_path, compress)
 
 
 def encode_dict(data: dict, wav_path: str, compress: bool = False) -> None:
-    """Encode a dict as a WAV file. Nested dicts are supported and flattened
-    to dot-notation keys (e.g. {"db": {"host": "x"}} → key "db.host").
+    """Encode a dict as a stereo WAV file. Nested dicts are supported and
+    flattened to dot-notation keys (e.g. {"db": {"host": "x"}} → key "db.host").
 
     Values are converted to strings via str() before encoding.
 
@@ -139,9 +156,9 @@ def encode_dict(data: dict, wav_path: str, compress: bool = False) -> None:
     """
     data = _flatten_dict(data)
     keys = list(data.keys())
-    manifest = "\x00".join(keys)
-    channels = [_encode_string(manifest)]
-    for key in keys:
-        channels.append(_encode_string(str(data[key])))
+    values = [str(data[k]) for k in keys]
+
+    stream = _serialize_config(keys, values)
+    channels = _stereo_channels(stream)
 
     _write_output(_build_wav_bytes(channels), wav_path, compress)

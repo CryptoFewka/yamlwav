@@ -90,16 +90,33 @@ def decode_yamlwav(wav_path: str) -> dict:
     all_samples = struct.unpack(f"<{total_samples}h", raw)
     channels = [all_samples[c::n_channels] for c in range(n_channels)]
 
-    # Channel 0 is the key manifest: key names joined by null bytes
-    manifest = _decode_channel(channels[0])
-    keys = [k for k in manifest.split("\x00") if k]
-
-    result = {}
-    for i, key in enumerate(keys):
-        ch_idx = i + 1
-        if ch_idx >= n_channels:
-            break
-        result[key] = _decode_channel(channels[ch_idx])
+    # Detect format: v2 stereo streams start with \x02 in the left channel.
+    left = _decode_channel(channels[0])
+    if left and left[0] == "\x02":
+        # v2 stereo: recombine interleaved left/right channels.
+        right = _decode_channel(channels[1])
+        stream = []
+        for i in range(max(len(left), len(right))):
+            if i < len(left):
+                stream.append(left[i])
+            if i < len(right):
+                stream.append(right[i])
+        stream = "".join(stream)[1:]  # strip \x02 marker
+        result = {}
+        for pair in stream.split("\x01"):
+            if "\x00" in pair:
+                key, value = pair.split("\x00", 1)
+                if key:
+                    result[key] = value
+    else:
+        # v1 legacy: channel 0 = manifest, channels 1..N = values.
+        keys = [k for k in left.split("\x00") if k]
+        result = {}
+        for i, key in enumerate(keys):
+            ch_idx = i + 1
+            if ch_idx >= n_channels:
+                break
+            result[key] = _decode_channel(channels[ch_idx])
 
     return result
 
