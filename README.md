@@ -68,6 +68,18 @@ This maps all 256 byte values to the range 200 Hz – 6575 Hz. The key names are
 
 The resulting WAV file is 44100 Hz, 16-bit PCM and will play in any audio application, producing what can only be described as a demonic sine choir.
 
+### Hear it yourself
+
+This config:
+
+```yaml
+host: localhost
+port: 8080
+debug: true
+```
+
+sounds like this: [**demo.yaml.wav**](examples/demo.yaml.wav) (click to play in GitHub)
+
 ## YAML Compliance
 
 In the course of eliminating YAML dependencies, we accidentally wrote a complete YAML 1.2 parser. It is 1,660 lines of pure Python, has zero external dependencies, and passes the official YAML test suite at a rate that may surprise you.
