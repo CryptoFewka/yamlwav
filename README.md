@@ -1,4 +1,4 @@
-![yamlwav social preview](https://raw.githubusercontent.com/CryptoFewka/yamlwav/main/social_preview.png)
+<video src="https://github.com/user-attachments/assets/c6adb6a8-980a-4780-afb9-32a77de38dec" controls="controls" style="max-width: 730px;"></video>
 
 # yamlwav - Configuration via .wav? Sounds good to me.
 
@@ -78,9 +78,7 @@ port: 8080
 debug: true
 ```
 
-sounds like this (unmute to listen):
-
-<video src="https://github.com/user-attachments/assets/c6adb6a8-980a-4780-afb9-32a77de38dec" controls="controls" style="max-width: 730px;"></video>
+is what you hear when you unmute and play the video at the top of this README.
 
 ## YAML Compliance
 
