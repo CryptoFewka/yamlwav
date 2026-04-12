@@ -1,4 +1,4 @@
-<video src="https://github.com/user-attachments/assets/e3bbe78c-18dd-4e99-8be6-9146eda2b96a" controls="controls" style="max-width: 730px;"></video>
+<video src="https://github.com/user-attachments/assets/9e1e55b8-8c2f-4ce3-9c03-7c96df642602" controls="controls" style="max-width: 730px;"></video>
 
 # yamlwav - Configuration via .wav? Sounds good to me.
 
