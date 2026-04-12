@@ -154,7 +154,7 @@ yamlwav is available as a GitHub Action for encoding YAML files to WAV and decod
 ### Encode YAML to WAV
 
 ```yaml
-- uses: CryptoFewka/yamlwav@v1
+- uses: CryptoFewka/yamlwav@v2
   with:
     mode: encode
     files: config.yaml
@@ -163,7 +163,7 @@ yamlwav is available as a GitHub Action for encoding YAML files to WAV and decod
 With all options:
 
 ```yaml
-- uses: CryptoFewka/yamlwav@v1
+- uses: CryptoFewka/yamlwav@v2
   with:
     mode: encode
     files: |
@@ -180,7 +180,7 @@ With all options:
 ```yaml
 - name: Decode config
   id: cfg
-  uses: CryptoFewka/yamlwav@v1
+  uses: CryptoFewka/yamlwav@v2
   with:
     mode: decode
     file: config.yaml.wav
@@ -192,7 +192,7 @@ With all options:
 ### Decode WAV to environment variables
 
 ```yaml
-- uses: CryptoFewka/yamlwav@v1
+- uses: CryptoFewka/yamlwav@v2
   with:
     mode: decode
     file: config.yaml.wav
@@ -205,7 +205,7 @@ With all options:
 ### Decode WAV to .env or JSON file
 
 ```yaml
-- uses: CryptoFewka/yamlwav@v1
+- uses: CryptoFewka/yamlwav@v2
   with:
     mode: decode
     file: config.yaml.wav
@@ -233,8 +233,8 @@ With all options:
 
 ### Version pinning
 
-- `@v1` -- recommended. Gets bug fixes and new features, no breaking changes.
-- `@v1.0.0` -- exact version pin for maximum reproducibility.
+- `@v2` -- recommended. Gets bug fixes and new features, no breaking changes.
+- `@v2.0.0` -- exact version pin for maximum reproducibility.
 - `@main` -- latest development. Not recommended for production.
 
 ## API
