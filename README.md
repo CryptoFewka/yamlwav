@@ -288,6 +288,10 @@ yamlwav is designed for non-sensitive runtime configuration: hostnames, ports, f
 
   - Your team will hear the settings. This is the intended behavior.
 
+## Acknowledgments
+
+Inspired by an offhand comment from [@bbkane](https://github.com/bbkane) on Reddit.
+
 ## License
 
 MIT

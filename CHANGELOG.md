@@ -2,12 +2,18 @@
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-04-11
+
 ### Added
 - GitHub Action for encoding YAML to WAV and decoding WAV back to CI/CD outputs (env vars, .env files, JSON, step outputs)
 - Python 3.14 support
+- Acknowledgment for [@bbkane](https://github.com/bbkane) in README
 
 ### Changed
 - Upgraded GitHub Actions dependencies to Node.js 24 (checkout v6, setup-python v6, upload-artifact v6)
+
+### Fixed
+- Version bump for PyPI publish (v1.0.0 release failed due to stale version in pyproject.toml)
 
 ## [0.1.1] - 2026-04-08
 
