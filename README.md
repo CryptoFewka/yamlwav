@@ -58,15 +58,15 @@ print(cfg.to_nested())    # {"db": {"host": "localhost", "port": 5432}, ...}
 
 ## How It Works
 
-Each YAML key becomes a separate audio channel. Nested keys are flattened to dot-notation (e.g. `db.host`) before encoding. Each character of a key's value is encoded as a pure sine wave tone held for 0.15 seconds:
+All key-value pairs are serialized into a single stream and split across two stereo channels — the left channel carries even-indexed characters and the right channel carries odd-indexed characters. This encodes two characters simultaneously (one per ear), doubling throughput compared to mono. Each character is a pure sine wave tone held for 0.15 seconds:
 
 ```
 frequency = 200 + (ASCII_code × 25)  Hz
 ```
 
-This maps all 256 byte values to the range 200 Hz – 6575 Hz. The key names are encoded in channel 0 as a null-byte-separated manifest. Decoding uses the [Goertzel algorithm](https://en.wikipedia.org/wiki/Goertzel_algorithm) to detect the dominant frequency in each 0.15-second window and recover the original character.
+This maps all 256 byte values to the range 200 Hz – 6575 Hz. Decoding uses the [Goertzel algorithm](https://en.wikipedia.org/wiki/Goertzel_algorithm) to detect the dominant frequency in each 0.15-second window and recover the original character. The decoder also reads legacy v1 (multi-channel) WAV files automatically.
 
-The resulting WAV file is 44100 Hz, 16-bit PCM and will play in any audio application, producing what can only be described as a demonic sine choir.
+The resulting WAV file is 44100 Hz, 16-bit stereo PCM and will play in any audio application, producing what can only be described as a demonic sine choir.
 
 ### Hear it yourself
 

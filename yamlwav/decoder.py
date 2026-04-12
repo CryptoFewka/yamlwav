@@ -48,15 +48,45 @@ def decode(wav_path: str) -> dict:
     all_samples = struct.unpack(f"<{total_samples}h", raw)
     channels = [all_samples[c::n_channels] for c in range(n_channels)]
 
-    # Channel 0: key manifest — key names separated by null bytes.
-    manifest = _decode_channel(channels[0])
-    keys = [k for k in manifest.split("\x00") if k]
+    # Detect format: decode left channel and check for v2 marker (\x02).
+    left = _decode_channel(channels[0])
+    if left and left[0] == "\x02":
+        return _decode_v2(left, _decode_channel(channels[1]))
+    else:
+        return _decode_v1(left, channels, n_channels)
 
+
+def _decode_v1(manifest: str, channels: list, n_channels: int) -> dict:
+    """Decode v1 N-channel format (channel 0 = manifest, 1..N = values)."""
+    keys = [k for k in manifest.split("\x00") if k]
     result = {}
     for i, key in enumerate(keys):
         ch_idx = i + 1
         if ch_idx >= n_channels:
             break
         result[key] = _decode_channel(channels[ch_idx])
+    return result
 
+
+def _decode_v2(left: str, right: str) -> dict:
+    """Decode v2 stereo format (interleaved stream split across L/R channels)."""
+    # Recombine interleaved characters from left and right channels.
+    stream = []
+    for i in range(max(len(left), len(right))):
+        if i < len(left):
+            stream.append(left[i])
+        if i < len(right):
+            stream.append(right[i])
+    stream = "".join(stream)
+
+    # Strip v2 marker prefix.
+    stream = stream[1:]
+
+    # Split on \x01 to get key-value pair strings, then \x00 within each.
+    result = {}
+    for pair in stream.split("\x01"):
+        if "\x00" in pair:
+            key, value = pair.split("\x00", 1)
+            if key:
+                result[key] = value
     return result
