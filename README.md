@@ -78,7 +78,9 @@ port: 8080
 debug: true
 ```
 
-sounds like this: [**demo.yaml.wav**](https://cdn.jsdelivr.net/gh/CryptoFewka/yamlwav@main/examples/demo.yaml.wav) (click to play)
+sounds like this (unmute to listen):
+
+https://github.com/CryptoFewka/yamlwav/raw/refs/heads/main/examples/demo.mp4
 
 ## YAML Compliance
 

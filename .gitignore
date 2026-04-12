@@ -6,4 +6,5 @@ build/
 .pytest_cache/
 *.wav
 !examples/demo.yaml.wav
+!examples/demo.mp4
 PLAN.md
