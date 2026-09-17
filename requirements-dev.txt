@@ -8,7 +8,7 @@ ruamel.yaml==0.19.1
 PyYAML==6.0.3
 
 # Transitive dependencies. iniconfig 2.2+ requires Python 3.10+.
-iniconfig==2.1.0
+iniconfig==2.3.0
 packaging==26.3
 pluggy==1.6.0
 Pygments==2.21.0
