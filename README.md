@@ -270,6 +270,32 @@ The function is self-contained: it imports `wave`, `struct`, and `math` from ins
 
 If you want automatic type coercion on the reading side, add the `WavConfig` class from `yamlwav/config.py` — it is also pure stdlib and equally safe to paste.
 
+## Development
+
+Use Python 3.9–3.14 and install the pinned development environment:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+python -m pip install -r requirements-dev.txt -e ".[dev]"
+python -m pytest tests/test_roundtrip.py tests/test_yaml_parser.py
+```
+
+`requirements-dev.txt` pins the test tools and their transitive dependencies,
+including Python/platform-specific dependencies. CI uses the same pins across
+the supported Python versions. The package's `dev` extra remains flexible;
+these pins do not add runtime dependencies or constrain package users.
+Dependabot checks the pins weekly. When adding a development dependency, update
+both the `dev` extra in `pyproject.toml` and the pinned requirements.
+
+The separate YAML Compliance workflow checks the official test-suite submodule.
+To run its positive compliance cases locally:
+
+```bash
+git submodule update --init --recursive
+python -m pytest tests/test_yaml_compliance.py::test_yamlwav_compliance
+```
+
 ## Security
 
 **Do not store secrets (API keys, passwords, tokens) in yamlwav files.** WAV files are not encrypted. Anyone with access to the file can decode it by running `yamlwav.decode()`. The "security by obscurity" joke is a joke; actual credentials belong in a proper secrets manager (Vault, AWS Secrets Manager, environment variables, etc.).

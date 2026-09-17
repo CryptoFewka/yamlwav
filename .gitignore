@@ -4,6 +4,7 @@ __pycache__/
 dist/
 build/
 .pytest_cache/
+.venv/
 *.wav
 !examples/demo.yaml.wav
 !examples/demo.mp4
