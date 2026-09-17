@@ -3,7 +3,7 @@
 # Keep pyproject.toml's dev extra flexible; update this file with Dependabot.
 
 # Direct dependencies. pytest 9 requires Python 3.10+.
-pytest==8.4.2
+pytest==9.1.1
 ruamel.yaml==0.19.1
 PyYAML==6.0.3
 
